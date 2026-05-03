@@ -45,7 +45,11 @@ export function formatMacro(g: number): string {
 
 /** Relative date label: "Today", "Yesterday", or locale date */
 export function formatRelativeDate(isoDate: string): string {
-  const date = new Date(isoDate);
+  // Append local noon so date-only strings ("YYYY-MM-DD") are parsed in local
+  // time rather than UTC midnight. Without this, users in negative UTC offsets
+  // (e.g. UTC-5) see the prior calendar day — "Today" never matches.
+  const dateStr = isoDate.length === 10 ? isoDate + "T12:00:00" : isoDate;
+  const date = new Date(dateStr);
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);

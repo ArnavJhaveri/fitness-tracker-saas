@@ -1,10 +1,12 @@
 name: Deploy
 
+# Only deploy after CI has passed on the target branch.
+# This prevents broken commits from reaching Vercel while CI is still running.
 on:
-  push:
-    branches:
-      - main # → production
-      - staging # → staging (preview)
+  workflow_run:
+    workflows: [CI]
+    branches: [main, staging]
+    types: [completed]
 
 env:
   NODE_VERSION: "20"
@@ -12,12 +14,16 @@ env:
 jobs:
   # ─── Deploy to Vercel ───────────────────────────────────────────────────────
   deploy:
-    name: Deploy (${{ github.ref_name }})
+    name: Deploy (${{ github.event.workflow_run.head_branch }})
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    # Only deploy when CI succeeded — skip on failure or cancellation.
+    if: github.event.workflow_run.conclusion == 'success'
+    environment: ${{ github.event.workflow_run.head_branch == 'main' && 'production' || 'staging' }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -30,13 +36,15 @@ jobs:
       - name: Pull Vercel environment
         run: |
           vercel pull --yes \
-            --environment=${{ github.ref_name == 'main' && 'production' || 'preview' }} \
+            --environment=${{ github.event.workflow_run.head_branch == 'main' && 'production' || 'preview' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build for Vercel
+        env:
+          SENTRY_SUPPRESS_TURBOPACK_WARNING: 1
         run: |
           vercel build \
-            ${{ github.ref_name == 'main' && '--prod' || '' }} \
+            ${{ github.event.workflow_run.head_branch == 'main' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy to Vercel
@@ -44,38 +52,26 @@ jobs:
         run: |
           URL=$(vercel deploy \
             --prebuilt \
-            ${{ github.ref_name == 'main' && '--prod' || '' }} \
+            ${{ github.event.workflow_run.head_branch == 'main' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
 
-      - name: Add deployment URL to PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `🚀 Deployed to: ${{ steps.deploy.outputs.url }}`
-            })
-
       - name: Run smoke test against deployment
         run: |
-          # Wait for deployment to be ready, then hit the health endpoint.
-          sleep 10
+          # Wait for Vercel to propagate the deployment, then hit the health endpoint.
+          sleep 15
           curl -f "${{ steps.deploy.outputs.url }}/api/health" \
             --retry 5 --retry-delay 5 \
             || (echo "Health check failed" && exit 1)
 
       # ─── Notify Sentry of new release ────────────────────────────────────
       - name: Create Sentry release
-        if: github.ref_name == 'main'
+        if: github.event.workflow_run.head_branch == 'main'
         uses: getsentry/action-release@v1
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
         with:
-          environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
-          version: ${{ github.sha }}
+          environment: production
+          version: ${{ github.event.workflow_run.head_sha }}

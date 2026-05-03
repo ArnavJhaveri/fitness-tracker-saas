@@ -149,9 +149,13 @@ Before opening a PR, verify:
 | `SUPABASE_SERVICE_ROLE_KEY`     | No         | Admin key — only for server-side scripts |
 | `NEXT_PUBLIC_APP_URL`           | Yes        | Canonical URL (used in auth callbacks)   |
 | `NEXT_PUBLIC_SENTRY_DSN`        | Production | Sentry DSN for error tracking            |
-| `SENTRY_AUTH_TOKEN`             | CI         | For source map uploads                   |
+| `SENTRY_AUTH_TOKEN`             | CI         | For source map uploads to Sentry         |
+| `SENTRY_ORG`                    | CI         | Sentry org slug (for releases + uploads) |
+| `SENTRY_PROJECT`                | CI         | Sentry project slug                      |
 | `UPSTASH_REDIS_REST_URL`        | Production | Redis URL for distributed rate limiting  |
 | `UPSTASH_REDIS_REST_TOKEN`      | Production | Redis token                              |
+| `E2E_SUPABASE_URL`              | E2E only   | Test Supabase project URL                |
+| `E2E_SUPABASE_ANON_KEY`         | E2E only   | Test Supabase anon key                   |
 | `E2E_USER_EMAIL`                | E2E only   | Test user email                          |
 | `E2E_USER_PASSWORD`             | E2E only   | Test user password                       |
 
