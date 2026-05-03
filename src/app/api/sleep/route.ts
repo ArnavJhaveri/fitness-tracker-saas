@@ -1,0 +1,72 @@
+/**
+ * GET  /api/sleep — paginated sleep entries
+ * POST /api/sleep — log a sleep session
+ */
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { handleRouteError, UnauthorizedError } from "@/lib/errors";
+import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { createSleepEntrySchema, paginationSchema, dateRangeSchema } from "@/lib/validations";
+import { parseRequestBody, parseSearchParams } from "@/lib/validations/shared";
+import { listSleepEntries, createSleepEntry } from "@/lib/db/health";
+import type { ApiSuccess } from "@/types/api";
+import type { SleepEntry } from "@/types/database";
+
+const listQuerySchema = paginationSchema.merge(dateRangeSchema);
+
+export async function GET(request: NextRequest) {
+  try {
+    await enforceRateLimit("api:sleep:get", apiLimiter);
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new UnauthorizedError();
+
+    const params = parseSearchParams(
+      Object.fromEntries(request.nextUrl.searchParams),
+      listQuerySchema,
+    );
+
+    const { data, count } = await listSleepEntries(supabase, user.id, params);
+
+    return NextResponse.json<ApiSuccess<SleepEntry[]>>({
+      success: true,
+      data,
+      meta: {
+        page: params.page,
+        per_page: params.per_page,
+        total: count,
+        total_pages: Math.ceil(count / params.per_page),
+      },
+    });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    await enforceRateLimit("api:sleep:post", apiLimiter);
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new UnauthorizedError();
+
+    const body = await parseRequestBody(request, createSleepEntrySchema);
+    const entry = await createSleepEntry(supabase, user.id, body);
+
+    return NextResponse.json<ApiSuccess<SleepEntry>>(
+      { success: true, data: entry },
+      { status: 201 },
+    );
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
+
+export const dynamic = "force-dynamic";

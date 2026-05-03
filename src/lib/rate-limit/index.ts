@@ -1,0 +1,167 @@
+/**
+ * Rate limiter — sliding window, globally consistent.
+ *
+ * Backend selection (resolved once at module load):
+ *
+ *   Production (UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN set)
+ *   └── @upstash/ratelimit  ← shared across all serverless instances
+ *
+ *   Development / CI (env vars absent)
+ *   └── in-process Map      ← zero-dependency, resets on cold start
+ *
+ * The public interface — enforceRateLimit(prefix, config) — is identical
+ * in both paths, so no call sites need to change when env vars are added.
+ *
+ * Required env vars for production:
+ *   UPSTASH_REDIS_REST_URL   — REST endpoint from Upstash console
+ *   UPSTASH_REDIS_REST_TOKEN — read-write token from Upstash console
+ *
+ * Getting started:
+ *   1. Create a free Redis database at https://console.upstash.com
+ *   2. Copy the REST URL and token into your .env.local (and Vercel env)
+ *   3. Redeploy — rate limiting is now global
+ */
+
+import { headers } from "next/headers";
+import { RateLimitError } from "@/lib/errors";
+
+// ─── Shared types (unchanged — call sites depend on these) ────────────────────
+
+export interface RateLimitConfig {
+  /** Number of requests allowed per window */
+  limit: number;
+  /** Window length in milliseconds */
+  windowMs: number;
+}
+
+export interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+}
+
+// ─── Pre-configured limiters (unchanged) ──────────────────────────────────────
+
+/** Standard API endpoints — 60 requests per minute per IP */
+export const apiLimiter: RateLimitConfig = { limit: 60, windowMs: 60_000 };
+
+/** Auth endpoints (login / register) — 10 per 15 minutes per IP */
+export const authLimiter: RateLimitConfig = { limit: 10, windowMs: 15 * 60_000 };
+
+/** Strict limiter for password reset — 5 per hour */
+export const passwordResetLimiter: RateLimitConfig = { limit: 5, windowMs: 60 * 60_000 };
+
+// ─── Backend: in-process Map (dev / CI fallback) ──────────────────────────────
+
+interface WindowEntry {
+  count: number;
+  resetAt: number;
+}
+const localStore = new Map<string, WindowEntry>();
+
+function checkLocal(key: string, config: RateLimitConfig): RateLimitResult {
+  const now = Date.now();
+  const entry = localStore.get(key);
+
+  if (!entry || now > entry.resetAt) {
+    localStore.set(key, { count: 1, resetAt: now + config.windowMs });
+    return { allowed: true, remaining: config.limit - 1, resetAt: now + config.windowMs };
+  }
+
+  if (entry.count >= config.limit) {
+    return { allowed: false, remaining: 0, resetAt: entry.resetAt };
+  }
+
+  entry.count += 1;
+  return { allowed: true, remaining: config.limit - entry.count, resetAt: entry.resetAt };
+}
+
+// ─── Backend: Upstash Redis (production) ──────────────────────────────────────
+
+/**
+ * Lazily-initialised Upstash limiter cache.
+ * We cache one Ratelimit instance per config shape (limit + window) to avoid
+ * re-constructing on every request while keeping the module import side-effect free.
+ */
+const upstashLimiters = new Map<string, import("@upstash/ratelimit").Ratelimit>();
+
+async function checkUpstash(key: string, config: RateLimitConfig): Promise<RateLimitResult> {
+  const { Redis } = await import("@upstash/redis");
+  const { Ratelimit } = await import("@upstash/ratelimit");
+
+  const cacheKey = `${config.limit}:${config.windowMs}`;
+  let limiter = upstashLimiters.get(cacheKey);
+
+  if (!limiter) {
+    const redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL!,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    });
+
+    limiter = new Ratelimit({
+      redis,
+      // Sliding window gives smoother throttling than fixed windows
+      limiter: Ratelimit.slidingWindow(config.limit, `${config.windowMs}ms`),
+      analytics: false, // opt out of Upstash analytics to keep costs minimal
+    });
+
+    upstashLimiters.set(cacheKey, limiter);
+  }
+
+  const { success, remaining, reset } = await limiter.limit(key);
+
+  return {
+    allowed: success,
+    remaining: remaining,
+    resetAt: Number(reset), // Upstash returns epoch-ms
+  };
+}
+
+// ─── Unified check (picks backend automatically) ───────────────────────────────
+
+const useRedis =
+  typeof process.env.UPSTASH_REDIS_REST_URL === "string" &&
+  process.env.UPSTASH_REDIS_REST_URL.length > 0 &&
+  typeof process.env.UPSTASH_REDIS_REST_TOKEN === "string" &&
+  process.env.UPSTASH_REDIS_REST_TOKEN.length > 0;
+
+/**
+ * Check and increment the rate limit counter for a given key.
+ *
+ * Uses Upstash Redis in production (env vars present) and the in-process
+ * Map fallback otherwise. The return shape is identical in both paths.
+ */
+export async function checkRateLimit(
+  key: string,
+  config: RateLimitConfig,
+): Promise<RateLimitResult> {
+  if (useRedis) {
+    return checkUpstash(key, config);
+  }
+  return checkLocal(key, config);
+}
+
+// ─── Route-handler helper (signature unchanged) ───────────────────────────────
+
+/**
+ * Reads the request IP from Next.js headers and enforces the given limiter.
+ * Throws RateLimitError if the limit is exceeded.
+ *
+ * Call sites are unchanged — this is a drop-in replacement.
+ */
+export async function enforceRateLimit(prefix: string, config: RateLimitConfig): Promise<void> {
+  const headerStore = await headers();
+
+  // On Vercel, x-forwarded-for is set by the edge network and can be trusted.
+  // For other hosts without a verified proxy, fall back to x-real-ip or "unknown".
+  const ip =
+    headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    headerStore.get("x-real-ip") ??
+    "unknown";
+
+  const result = await checkRateLimit(`${prefix}:${ip}`, config);
+
+  if (!result.allowed) {
+    throw new RateLimitError();
+  }
+}
