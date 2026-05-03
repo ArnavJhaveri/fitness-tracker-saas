@@ -17,7 +17,11 @@ export function useCreateGoal() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: goalsService.create,
-    onSuccess: () => qc.invalidateQueries({ queryKey: GOALS_KEY }),
+    onSuccess: () => {
+      // Goals feed into the analytics adherence score — invalidate both.
+      qc.invalidateQueries({ queryKey: GOALS_KEY });
+      qc.invalidateQueries({ queryKey: ["analytics"] });
+    },
   });
 }
 
@@ -26,7 +30,10 @@ export function useUpdateGoal() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Parameters<typeof goalsService.update>[1] }) =>
       goalsService.update(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: GOALS_KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: GOALS_KEY });
+      qc.invalidateQueries({ queryKey: ["analytics"] });
+    },
   });
 }
 
@@ -34,6 +41,9 @@ export function useDeleteGoal() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => goalsService.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: GOALS_KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: GOALS_KEY });
+      qc.invalidateQueries({ queryKey: ["analytics"] });
+    },
   });
 }

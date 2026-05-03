@@ -67,8 +67,12 @@ export function useAddExercise() {
       sessionId: string;
       data: { exercise_id: string; order_index: number; notes?: string | null };
     }) => workoutService.addExercise(sessionId, data),
-    onSuccess: (_data, { sessionId }) =>
-      qc.invalidateQueries({ queryKey: [...WORKOUTS_KEY, sessionId] }),
+    onSuccess: (_data, { sessionId }) => {
+      // Invalidate both the specific session view AND the session list —
+      // the list may embed exercise counts or aggregate data.
+      qc.invalidateQueries({ queryKey: [...WORKOUTS_KEY, sessionId] });
+      qc.invalidateQueries({ queryKey: WORKOUTS_KEY });
+    },
   });
 }
 
@@ -84,8 +88,12 @@ export function useAddSet() {
       exerciseId: string;
       data: Parameters<typeof workoutService.addSet>[2];
     }) => workoutService.addSet(sessionId, exerciseId, data),
-    onSuccess: (_data, { sessionId }) =>
-      qc.invalidateQueries({ queryKey: [...WORKOUTS_KEY, sessionId] }),
+    onSuccess: (_data, { sessionId }) => {
+      // Sets contribute to workout volume/duration reflected in analytics.
+      qc.invalidateQueries({ queryKey: [...WORKOUTS_KEY, sessionId] });
+      qc.invalidateQueries({ queryKey: WORKOUTS_KEY });
+      qc.invalidateQueries({ queryKey: ["analytics"] });
+    },
   });
 }
 
@@ -101,7 +109,10 @@ export function useDeleteSet() {
       exerciseId: string;
       setId: string;
     }) => workoutService.deleteSet(sessionId, exerciseId, setId),
-    onSuccess: (_data, { sessionId }) =>
-      qc.invalidateQueries({ queryKey: [...WORKOUTS_KEY, sessionId] }),
+    onSuccess: (_data, { sessionId }) => {
+      qc.invalidateQueries({ queryKey: [...WORKOUTS_KEY, sessionId] });
+      qc.invalidateQueries({ queryKey: WORKOUTS_KEY });
+      qc.invalidateQueries({ queryKey: ["analytics"] });
+    },
   });
 }

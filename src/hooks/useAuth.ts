@@ -42,7 +42,10 @@ export function useAuth() {
 
   const signOut = useCallback(async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    // signOut rarely fails (local session is cleared regardless), but log it
+    // so it surfaces in dev tools if Supabase's remote session revocation fails.
+    if (error) console.error("Sign out error:", error.message);
     router.push(ROUTES.LOGIN);
     router.refresh();
   }, [router]);

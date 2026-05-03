@@ -16,6 +16,7 @@ export function SetLogRow({ sessionId, workoutExercise }: Props) {
   const [reps, setReps] = useState("");
   const [kg, setKg] = useState("");
   const [isWarmup, setWarmup] = useState(false);
+  const [err, setErr] = useState("");
 
   const { mutate: addSet, isPending } = useAddSet();
   const { mutate: deleteSet } = useDeleteSet();
@@ -23,24 +24,36 @@ export function SetLogRow({ sessionId, workoutExercise }: Props) {
   const sets = workoutExercise.exercise_sets ?? [];
 
   function handleAdd() {
+    setErr("");
     const setNumber = sets.length + 1;
-    addSet({
-      sessionId,
-      exerciseId: workoutExercise.id,
-      data: {
-        set_number: setNumber,
-        reps: reps ? parseInt(reps) : null,
-        weight_kg: kg ? parseFloat(kg) : null,
-        is_warmup: isWarmup,
+    addSet(
+      {
+        sessionId,
+        exerciseId: workoutExercise.id,
+        data: {
+          set_number: setNumber,
+          reps: reps ? parseInt(reps) : null,
+          weight_kg: kg ? parseFloat(kg) : null,
+          is_warmup: isWarmup,
+        },
       },
-    });
-    setReps("");
-    setKg("");
-    setWarmup(false);
+      {
+        // Clear inputs only after the server confirms the set was saved —
+        // clearing unconditionally before onSuccess would lose the user's
+        // data if the request fails.
+        onSuccess: () => {
+          setReps("");
+          setKg("");
+          setWarmup(false);
+        },
+        onError: (e) => setErr(e.message || "Failed to save set. Try again."),
+      },
+    );
   }
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-gray-100 p-4 dark:border-gray-700">
+      {err && <p className="text-xs text-red-500 dark:text-red-400">{err}</p>}
       <p className="font-medium text-gray-900 dark:text-gray-100">
         {workoutExercise.exercises?.name ?? "Exercise"}
       </p>

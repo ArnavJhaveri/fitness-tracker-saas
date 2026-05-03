@@ -16,7 +16,10 @@ export function useAnalytics(from?: string, to?: string) {
 
 /** Convenience: today's single row. */
 export function useTodaySummary() {
-  const today = localDateStr();
+  // useState lazy init — the only React-sanctioned place for an impure call
+  // like localDateStr() (which calls new Date()). Computed once at mount so
+  // the query key is stable across re-renders and doesn't cause extra fetches.
+  const [today] = useState(() => localDateStr());
   const { data, ...rest } = useAnalytics(today, today);
   return { today: data?.[0] ?? null, ...rest };
 }

@@ -66,6 +66,7 @@ export function SleepLogForm({ onSuccess }: Props) {
           setQuality("");
           onSuccess?.();
         },
+        onError: (e) => setErr(e.message || "Failed to save. Please try again."),
       },
     );
   }

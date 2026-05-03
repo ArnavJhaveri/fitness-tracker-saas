@@ -29,8 +29,8 @@ export default function GoalsPage() {
   // regardless of which status tab is active. This is a lightweight query
   // that stays cache-warm because GOALS_KEY is a prefix match.
   const { data: allGoals = [] } = useGoals(undefined);
-  const activeCount = (allGoals as Goal[]).filter((g) => g.status === "active").length;
-  const completedCount = (allGoals as Goal[]).filter((g) => g.status === "completed").length;
+  const activeCount = allGoals.filter((g) => g.status === "active").length;
+  const completedCount = allGoals.filter((g) => g.status === "completed").length;
 
   return (
     <div className="flex flex-col">

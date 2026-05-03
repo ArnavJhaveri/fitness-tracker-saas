@@ -1,6 +1,6 @@
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, MutationCache } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
 
@@ -24,6 +24,14 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
+        // Global safety net: every mutation failure is logged to the console.
+        // Individual hooks/call-sites may also handle errors via their own
+        // onError callbacks for specific recovery logic (e.g. optimistic rollback).
+        mutationCache: new MutationCache({
+          onError: (error) => {
+            console.error("[mutation error]", error);
+          },
+        }),
         defaultOptions: {
           queries: {
             staleTime: 60 * 1000,

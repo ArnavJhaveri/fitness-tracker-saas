@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import type { Route } from "next";
 import { createClient } from "@/lib/supabase/client";
 import { loginSchema } from "@/lib/validations/auth";
 import { Input } from "@/components/ui/Input";
@@ -64,8 +65,7 @@ export function LoginForm() {
     // Only allow relative paths to prevent open-redirect attacks.
     const redirectTo = searchParams.get("redirectTo") ?? "";
     const safePath = redirectTo.startsWith("/") ? redirectTo : ROUTES.DASHBOARD;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    router.push(safePath as any);
+    router.push(safePath as Route);
     router.refresh();
   }
 

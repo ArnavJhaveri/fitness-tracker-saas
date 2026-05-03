@@ -45,6 +45,7 @@ export function WeightLogForm({ onSuccess }: Props) {
           setNotes("");
           onSuccess?.();
         },
+        onError: (e) => setErr(e.message || "Failed to save. Please try again."),
       },
     );
   }

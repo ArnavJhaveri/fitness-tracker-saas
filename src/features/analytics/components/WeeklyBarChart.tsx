@@ -61,9 +61,9 @@ export function WeeklyBarChart({ summaries, height = 160 }: Props) {
           formatter={(v) => [v as number, "Workouts"]}
         />
         <Bar dataKey="workouts" radius={[4, 4, 0, 0]}>
-          {days.map((d, i) => (
+          {days.map((d) => (
             <Cell
-              key={i}
+              key={d.day}
               fill={d.workouts > 0 ? "#6366f1" : "#e5e7eb"}
               className={d.workouts === 0 ? "dark:fill-gray-700" : ""}
             />

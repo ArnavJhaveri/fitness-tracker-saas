@@ -131,10 +131,7 @@ const useRedis =
  * Uses Upstash Redis in production (env vars present) and the in-process
  * Map fallback otherwise. The return shape is identical in both paths.
  */
-export async function checkRateLimit(
-  key: string,
-  config: RateLimitConfig,
-): Promise<RateLimitResult> {
+async function checkRateLimit(key: string, config: RateLimitConfig): Promise<RateLimitResult> {
   if (useRedis) {
     return checkUpstash(key, config);
   }

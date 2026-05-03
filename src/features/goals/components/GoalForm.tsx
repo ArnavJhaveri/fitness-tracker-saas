@@ -31,17 +31,26 @@ export function GoalForm({ onSuccess }: Props) {
   const [unit, setUnit] = useState("");
   const [targetDate, setDate] = useState("");
   const [description, setDesc] = useState("");
+  const [err, setErr] = useState("");
 
   const { mutate, isPending } = useCreateGoal();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setErr("");
+
+    const parsedTarget = target ? parseFloat(target) : null;
+    if (parsedTarget !== null && parsedTarget <= 0) {
+      setErr("Target value must be greater than 0");
+      return;
+    }
+
     mutate(
       {
         type,
         title,
         description: description || null,
-        target_value: target ? parseFloat(target) : null,
+        target_value: parsedTarget,
         unit: unit || null,
         target_date: targetDate || null,
       },
@@ -52,14 +61,21 @@ export function GoalForm({ onSuccess }: Props) {
           setUnit("");
           setDate("");
           setDesc("");
+          setErr("");
           onSuccess?.();
         },
+        onError: (e) => setErr(e.message || "Failed to create goal. Please try again."),
       },
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {err && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/30 dark:text-red-400">
+          {err}
+        </p>
+      )}
       <Select
         label="Goal type"
         options={TYPE_OPTIONS}

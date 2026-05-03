@@ -12,8 +12,8 @@ export interface MacroTotals {
   fiber_g: number;
 }
 
-/** Calculate macros for a given food item at a specific quantity. */
-export function calcItemMacros(food: FoodItem, grams: number): MacroTotals {
+/** Calculate macros for a given food item at a specific quantity. Internal helper. */
+function calcItemMacros(food: FoodItem, grams: number): MacroTotals {
   const ratio = grams / 100;
   return {
     calories: Math.round(food.calories_per_100g * ratio * 10) / 10,
@@ -61,7 +61,10 @@ export function calcDayMacros(
   );
 }
 
-/** Macro distribution as percentages of total calories. */
+/**
+ * Macro distribution as percentages of total calories.
+ * Reserved for use in MacroSummary when a percentage breakdown UI is added.
+ */
 export function calcMacroPercents(totals: MacroTotals): {
   protein: number;
   carbs: number;
