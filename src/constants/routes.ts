@@ -13,8 +13,6 @@ export const ROUTES = {
   // Protected — dashboard
   DASHBOARD: "/dashboard",
   WORKOUTS: "/dashboard/workouts",
-  WORKOUT_NEW: "/dashboard/workouts/new",
-  WORKOUT_DETAIL: (id: string) => `/dashboard/workouts/${id}`,
   NUTRITION: "/dashboard/nutrition",
   SLEEP: "/dashboard/sleep",
   WATER: "/dashboard/water",
@@ -23,12 +21,14 @@ export const ROUTES = {
   ANALYTICS: "/dashboard/analytics",
   SETTINGS: "/dashboard/settings",
 
-  // API
+  // API — used by service layer for fetch() calls
   API: {
     HEALTH: "/api/health",
     WORKOUTS: "/api/workouts",
     WORKOUT_DETAIL: (id: string) => `/api/workouts/${id}`,
-    NUTRITION: "/api/nutrition",
+    // /api/nutrition has no top-level handler; sub-paths are:
+    NUTRITION_MEALS: "/api/nutrition/meals",
+    NUTRITION_FOOD_ITEMS: "/api/nutrition/food-items",
     SLEEP: "/api/sleep",
     WATER: "/api/water",
     WEIGHT: "/api/weight",

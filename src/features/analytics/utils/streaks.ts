@@ -3,12 +3,7 @@
  * A "streak" is a consecutive sequence of days where a condition was met.
  */
 import type { DailySummary } from "@/types/database";
-
-/** Local calendar date as "YYYY-MM-DD" — correct in all timezones. */
-function localDateStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+import { localDateStr } from "@/lib/utils/date";
 
 /**
  * Calculate the current workout streak (consecutive days ending today

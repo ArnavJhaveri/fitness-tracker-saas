@@ -325,8 +325,7 @@ export function RegisterForm() {
     // If a session was returned, email confirmation is disabled — go straight to dashboard.
     // Otherwise, the user needs to click the confirmation link first.
     if (signUpData.session) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      router.push(ROUTES.DASHBOARD as any);
+      router.push(ROUTES.DASHBOARD);
       return;
     }
 

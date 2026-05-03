@@ -2,11 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { nutritionService } from "@/services/nutrition.service";
-
-/** Local calendar date as "YYYY-MM-DD" — correct in all timezones. */
-function localDateStr(d = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+import { localDateStr } from "@/lib/utils/date";
 
 const today = () => localDateStr();
 

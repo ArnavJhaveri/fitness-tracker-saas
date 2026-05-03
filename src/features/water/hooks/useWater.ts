@@ -2,12 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { waterService } from "@/services/water.service";
+import { localDateStr } from "@/lib/utils/date";
 import type { WaterEntry } from "@/types/database";
-
-/** Local calendar date as "YYYY-MM-DD" — correct in all timezones. */
-function localDateStr(d = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 /** Local midnight ISO string for start-of-day filtering. */
 function startOfLocalDay(): string {

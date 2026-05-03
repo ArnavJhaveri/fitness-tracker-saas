@@ -1,5 +1,0 @@
-/**
- * NOTE: Next.js 16 uses src/proxy.ts (export function proxy) instead of
- * the middleware.ts convention from Next.js 13–15.
- * This file is intentionally empty — all request interception lives in proxy.ts.
- */

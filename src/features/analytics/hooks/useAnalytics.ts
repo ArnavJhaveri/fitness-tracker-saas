@@ -3,12 +3,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { analyticsService } from "@/services/analytics.service";
+import { localDateStr } from "@/lib/utils/date";
 import type { DailySummary } from "@/types/database";
-
-/** Returns local calendar date as "YYYY-MM-DD" — correct in all timezones. */
-function localDateStr(d = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 export function useAnalytics(from?: string, to?: string) {
   return useQuery<DailySummary[]>({

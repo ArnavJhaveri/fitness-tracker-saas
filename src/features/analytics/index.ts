@@ -5,7 +5,7 @@ export { useAnalytics, useTodaySummary, useThirtyDaySummary } from "./hooks/useA
 export { calcWorkoutStreak, calcWaterStreak, calcLongestWorkoutStreak } from "./utils/streaks";
 export {
   workoutAdherence,
-  calorieAdherence,
+  calorieAdherence, // reserved — wired up once calorie target setting is surfaced in the UI
   waterAdherence,
   sleepAdherence,
   overallScore,

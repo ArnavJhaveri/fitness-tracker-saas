@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { useLogSleep } from "../hooks/useSleep";
+import { localDateStr } from "@/lib/utils/date";
 
 const QUALITY_OPTIONS = [
   { value: "", label: "No rating" },
@@ -16,11 +17,6 @@ const QUALITY_OPTIONS = [
   { value: "1", label: "⭐ Very poor" },
 ];
 
-/** Returns a local calendar date string "YYYY-MM-DD" — correct in all timezones. */
-function localDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 interface Props {
   onSuccess?: () => void;
 }
@@ -29,9 +25,9 @@ export function SleepLogForm({ onSuccess }: Props) {
   // Default: previous night 11 PM → 7 AM.
   // Lazy initialisers run once at mount so Date.now() is only called once,
   // satisfying the react-hooks/purity rule (no impure calls during render).
-  const [sleepDate, setSleepDate] = useState(() => localDate(new Date(Date.now() - 86_400_000)));
+  const [sleepDate, setSleepDate] = useState(() => localDateStr(new Date(Date.now() - 86_400_000)));
   const [sleepTime, setSleepTime] = useState("23:00");
-  const [wakeDate, setWakeDate] = useState(() => localDate(new Date()));
+  const [wakeDate, setWakeDate] = useState(() => localDateStr(new Date()));
   const [wakeTime, setWakeTime] = useState("07:00");
   const [quality, setQuality] = useState("");
   const [notes, setNotes] = useState("");

@@ -39,10 +39,11 @@ export function useUpdateProfile() {
     mutationFn: async (input) => {
       if (!user) throw new Error("Not authenticated");
       const supabase = createClient();
+      // updated_at is managed by the profiles_set_updated_at Postgres trigger —
+      // no need to pass it here; doing so would require an unsafe cast.
       const { data, error } = await supabase
         .from("profiles")
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update({ ...input, updated_at: new Date().toISOString() } as any)
+        .update(input)
         .eq("id", user.id)
         .select()
         .single();
