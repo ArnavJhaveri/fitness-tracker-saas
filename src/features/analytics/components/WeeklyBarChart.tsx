@@ -29,47 +29,51 @@ export function WeeklyBarChart({ summaries, height = 160 }: Props) {
     }));
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={days} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-        <CartesianGrid
-          strokeDasharray="3 3"
-          stroke="currentColor"
-          className="opacity-10"
-          vertical={false}
-        />
-        <XAxis
-          dataKey="day"
-          tick={{ fontSize: 11, fill: "currentColor" }}
-          tickLine={false}
-          className="text-gray-500"
-        />
-        <YAxis
-          tick={{ fontSize: 11, fill: "currentColor" }}
-          tickLine={false}
-          axisLine={false}
-          allowDecimals={false}
-          className="text-gray-500"
-        />
-        <Tooltip
-          contentStyle={{
-            background: "#1f2937",
-            border: "none",
-            borderRadius: "8px",
-            fontSize: "12px",
-            color: "#f9fafb",
-          }}
-          formatter={(v) => [v as number, "Workouts"]}
-        />
-        <Bar dataKey="workouts" radius={[4, 4, 0, 0]}>
-          {days.map((d) => (
-            <Cell
-              key={d.day}
-              fill={d.workouts > 0 ? "#6366f1" : "#e5e7eb"}
-              className={d.workouts === 0 ? "dark:fill-gray-700" : ""}
-            />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+    // minHeight prevents ResponsiveContainer from collapsing to 0 px on
+    // mobile Safari where the parent has no explicit height set (Flexbox quirk).
+    <div role="img" aria-label="Weekly workout activity bar chart" style={{ minHeight: height }}>
+      <ResponsiveContainer width="100%" height={height}>
+        <BarChart data={days} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="currentColor"
+            className="opacity-10"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="day"
+            tick={{ fontSize: 11, fill: "currentColor" }}
+            tickLine={false}
+            className="text-gray-500"
+          />
+          <YAxis
+            tick={{ fontSize: 11, fill: "currentColor" }}
+            tickLine={false}
+            axisLine={false}
+            allowDecimals={false}
+            className="text-gray-500"
+          />
+          <Tooltip
+            contentStyle={{
+              background: "#1f2937",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "12px",
+              color: "#f9fafb",
+            }}
+            formatter={(v) => [v as number, "Workouts"]}
+          />
+          <Bar dataKey="workouts" radius={[4, 4, 0, 0]}>
+            {days.map((d) => (
+              <Cell
+                key={d.day}
+                fill={d.workouts > 0 ? "#6366f1" : "#e5e7eb"}
+                className={d.workouts === 0 ? "dark:fill-gray-700" : ""}
+              />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

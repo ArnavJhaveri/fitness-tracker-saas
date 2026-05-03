@@ -4,7 +4,7 @@ import { Dumbbell, Utensils, Moon, Droplets, Flame, TrendingUp } from "lucide-re
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { CardSkeleton } from "@/components/ui/Skeleton";
 import { useTodaySummary, useThirtyDaySummary } from "@/features/analytics/hooks/useAnalytics";
-import { WeeklyBarChart } from "@/features/analytics/components/WeeklyBarChart";
+import { LazyWeeklyBarChart } from "@/features/analytics/components/LazyCharts";
 import { calcWorkoutStreak } from "@/features/analytics/utils/streaks";
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
@@ -107,7 +107,7 @@ export function DashboardOverview() {
             {historyLoading || !thirtyDays ? (
               <div className="h-40 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-700" />
             ) : (
-              <WeeklyBarChart summaries={thirtyDays} height={140} />
+              <LazyWeeklyBarChart summaries={thirtyDays} height={140} />
             )}
           </CardContent>
         </Card>

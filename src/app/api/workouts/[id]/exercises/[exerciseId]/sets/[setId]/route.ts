@@ -17,7 +17,7 @@ type Params = { params: Promise<{ id: string; exerciseId: string; setId: string 
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
     await enforceRateLimit("api:workouts:sets:put", apiLimiter);
-    const { id: sessionId, setId } = await params;
+    const { id: sessionId, exerciseId, setId } = await params;
 
     const supabase = await createClient();
     const {
@@ -26,9 +26,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
     if (!user) throw new UnauthorizedError();
 
     // Verify the parent session belongs to this user before mutating the set.
+    // Also pass exerciseId so the DB layer scopes the update to the correct exercise.
     await getWorkoutSession(supabase, user.id, sessionId);
     const body = await parseRequestBody(req, updateSetSchema);
-    const set = await updateSet(supabase, setId, body);
+    const set = await updateSet(supabase, setId, exerciseId, body);
     return NextResponse.json<ApiSuccess<typeof set>>({ success: true, data: set });
   } catch (err) {
     return handleRouteError(err);
@@ -38,7 +39,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
     await enforceRateLimit("api:workouts:sets:delete", apiLimiter);
-    const { id: sessionId, setId } = await params;
+    const { id: sessionId, exerciseId, setId } = await params;
 
     const supabase = await createClient();
     const {
@@ -47,8 +48,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     if (!user) throw new UnauthorizedError();
 
     // Verify the parent session belongs to this user before deleting the set.
+    // Also pass exerciseId so the DB layer scopes the delete to the correct exercise.
     await getWorkoutSession(supabase, user.id, sessionId);
-    await deleteSet(supabase, setId);
+    await deleteSet(supabase, setId, exerciseId);
     return new NextResponse(null, { status: 204 });
   } catch (err) {
     return handleRouteError(err);

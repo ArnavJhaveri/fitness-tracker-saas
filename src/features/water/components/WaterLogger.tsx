@@ -10,14 +10,17 @@ const QUICK_AMOUNTS = [150, 250, 330, 500, 750];
 
 export function WaterLogger() {
   const [custom, setCustom] = useState("");
+  const [err, setErr] = useState("");
   const { mutate, isPending } = useLogWater();
 
   function log(ml: number) {
     if (ml <= 0) return;
+    setErr("");
     mutate(ml, {
       // Only clear the input after the server confirms success so the value
       // isn't lost if the request fails and the user needs to retry.
       onSuccess: () => setCustom(""),
+      onError: (e) => setErr(e.message || "Failed to log water. Please try again."),
     });
   }
 
@@ -29,14 +32,23 @@ export function WaterLogger() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Quick-add buttons */}
+      {err && (
+        <p
+          role="alert"
+          aria-live="assertive"
+          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/30 dark:text-red-400"
+        >
+          {err}
+        </p>
+      )}
+      {/* Quick-add buttons — py-3 ensures ≥44px touch targets on mobile */}
       <div className="flex flex-wrap gap-2">
         {QUICK_AMOUNTS.map((ml) => (
           <button
             key={ml}
             onClick={() => log(ml)}
             disabled={isPending}
-            className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-900/40"
+            className="rounded-full border border-blue-200 bg-blue-50 px-3 py-3 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-900/40"
           >
             +{ml} ml
           </button>

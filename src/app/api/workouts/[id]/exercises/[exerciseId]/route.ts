@@ -25,7 +25,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     // RLS is the last line of defence; this ensures we 404 (not 403) for
     // resources that don't belong to this user, preventing enumeration.
     await getWorkoutSession(supabase, user.id, sessionId);
-    await removeExerciseFromSession(supabase, exerciseId);
+    await removeExerciseFromSession(supabase, exerciseId, sessionId);
     return new NextResponse(null, { status: 204 });
   } catch (err) {
     return handleRouteError(err);

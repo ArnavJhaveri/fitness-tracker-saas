@@ -21,11 +21,13 @@ interface Props {
 export function MealForm({ onSuccess }: Props) {
   const [mealType, setMealType] = useState("breakfast");
   const [name, setName] = useState("");
+  const [err, setErr] = useState("");
 
   const { mutate, isPending } = useCreateMeal();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setErr("");
     mutate(
       { meal_type: mealType, name: name || null, logged_at: new Date().toISOString() },
       {
@@ -33,12 +35,22 @@ export function MealForm({ onSuccess }: Props) {
           setName("");
           onSuccess?.();
         },
+        onError: (e) => setErr(e.message || "Failed to create meal. Please try again."),
       },
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {err && (
+        <p
+          role="alert"
+          aria-live="assertive"
+          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/30 dark:text-red-400"
+        >
+          {err}
+        </p>
+      )}
       <Select
         label="Meal type"
         value={mealType}

@@ -12,6 +12,14 @@ interface Props {
 export function WorkoutCard({ session, onClick }: Props) {
   const { mutate: deleteSession } = useDeleteWorkout();
 
+  function handleDelete() {
+    if (!window.confirm(`Delete "${session.name}"? This cannot be undone.`)) return;
+    deleteSession(session.id, {
+      onError: () =>
+        window.alert("Failed to delete workout. Please try again or refresh the page."),
+    });
+  }
+
   const isActive = !session.ended_at;
   const duration = (() => {
     if (!session.duration_minutes) return null;
@@ -55,8 +63,8 @@ export function WorkoutCard({ session, onClick }: Props) {
 
       <div className="flex items-center gap-1">
         <button
-          onClick={() => deleteSession(session.id)}
-          aria-label="Delete workout"
+          onClick={handleDelete}
+          aria-label={`Delete workout ${session.name}`}
           className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-red-400 dark:hover:bg-gray-700"
         >
           <Trash2 className="h-4 w-4" />

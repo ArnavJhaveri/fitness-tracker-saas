@@ -23,14 +23,13 @@ export default function GoalsPage() {
   const [statusFilter, setStatusFilter] = useState<string | undefined>("active");
   const [showForm, setShowForm] = useState(false);
 
-  const { data: goals = [], isLoading } = useGoals(statusFilter);
-
-  // Always fetch the unfiltered list so the summary cards are accurate
-  // regardless of which status tab is active. This is a lightweight query
-  // that stays cache-warm because GOALS_KEY is a prefix match.
-  const { data: allGoals = [] } = useGoals(undefined);
-  const activeCount = allGoals.filter((g) => g.status === "active").length;
-  const completedCount = allGoals.filter((g) => g.status === "completed").length;
+  // Fetch all goals once and filter client-side — avoids two parallel requests
+  // and keeps summary counts accurate regardless of the active tab.
+  const { data: allGoals = [], isLoading } = useGoals(undefined);
+  const goals =
+    statusFilter !== undefined ? allGoals.filter((g: Goal) => g.status === statusFilter) : allGoals;
+  const activeCount = allGoals.filter((g: Goal) => g.status === "active").length;
+  const completedCount = allGoals.filter((g: Goal) => g.status === "completed").length;
 
   return (
     <div className="flex flex-col">
@@ -80,10 +79,16 @@ export default function GoalsPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle>Goals</CardTitle>
               {/* Status filter tabs */}
-              <div className="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+              <div
+                role="tablist"
+                aria-label="Filter goals by status"
+                className="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800"
+              >
                 {STATUS_TABS.map((tab) => (
                   <button
                     key={String(tab.value)}
+                    role="tab"
+                    aria-selected={statusFilter === tab.value}
                     onClick={() => setStatusFilter(tab.value)}
                     className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                       statusFilter === tab.value

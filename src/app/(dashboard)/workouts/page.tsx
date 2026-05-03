@@ -50,6 +50,7 @@ function ExercisePicker({ sessionId, orderIndex }: { sessionId: string; orderInd
       <div className="flex gap-2">
         <input
           type="text"
+          aria-label="Search exercises"
           placeholder="Search exercises (e.g. bench press)…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}

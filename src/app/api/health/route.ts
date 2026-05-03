@@ -15,8 +15,10 @@ export async function GET() {
 
   try {
     const supabase = await createClient();
-    // Lightweight probe — just check we can reach the DB
-    const { error } = await supabase.from("profiles").select("id").limit(1);
+    // Lightweight probe — confirm DB connectivity without reading any user data.
+    // `head: true` sends a HEAD request (COUNT query, no rows returned);
+    // `limit(0)` ensures we never fetch actual data even if head is ignored.
+    const { error } = await supabase.from("profiles").select("id", { head: true }).limit(0);
 
     if (error) {
       // Log internally — never expose raw DB error messages to callers

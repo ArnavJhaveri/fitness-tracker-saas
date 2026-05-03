@@ -8,6 +8,7 @@ import { loginSchema } from "@/lib/validations/auth";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@/constants";
+import { isSafeRedirect } from "@/lib/utils/redirect";
 import type { LoginInput } from "@/lib/validations/auth";
 
 // Human-readable messages for ?error= params set by /auth/callback
@@ -62,9 +63,10 @@ export function LoginForm() {
 
     // Respect redirectTo set by the proxy when the user was sent to /login
     // from a protected route (e.g. /weight → /login?redirectTo=/weight).
-    // Only allow relative paths to prevent open-redirect attacks.
+    // isSafeRedirect blocks protocol-relative URLs like "//evil.com" that
+    // start with "/" but redirect to an external host.
     const redirectTo = searchParams.get("redirectTo") ?? "";
-    const safePath = redirectTo.startsWith("/") ? redirectTo : ROUTES.DASHBOARD;
+    const safePath = isSafeRedirect(redirectTo) ? redirectTo : ROUTES.DASHBOARD;
     router.push(safePath as Route);
     router.refresh();
   }

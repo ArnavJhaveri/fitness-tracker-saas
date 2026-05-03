@@ -13,15 +13,17 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isSafeRedirect } from "@/lib/utils/redirect";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
 
   const code = searchParams.get("code");
-  // Allow a custom redirect target, but only allow relative paths
-  // to prevent open-redirect attacks.
+  // Allow a custom redirect target, but only allow safe relative paths to
+  // prevent open-redirect attacks. "//evil.com" starts with "/" but must be
+  // blocked because browsers resolve it as a protocol-relative URL.
   const rawNext = searchParams.get("next") ?? "";
-  const next = rawNext.startsWith("/") ? rawNext : "/dashboard";
+  const next = isSafeRedirect(rawNext) ? rawNext : "/dashboard";
 
   if (code) {
     const supabase = await createClient();

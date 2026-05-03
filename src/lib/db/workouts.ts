@@ -136,8 +136,15 @@ export async function addExerciseToSession(
 export async function removeExerciseFromSession(
   supabase: SupabaseClient,
   exerciseId: string,
+  sessionId: string,
 ): Promise<void> {
-  const { error } = await supabase.from("workout_exercises").delete().eq("id", exerciseId);
+  // Scope the delete to both exerciseId AND sessionId so a user cannot delete
+  // an exercise that belongs to a different session by guessing the exerciseId.
+  const { error } = await supabase
+    .from("workout_exercises")
+    .delete()
+    .eq("id", exerciseId)
+    .eq("workout_session_id", sessionId);
   if (error) throw error;
 }
 
@@ -160,19 +167,33 @@ export async function addSet(
 export async function updateSet(
   supabase: SupabaseClient,
   setId: string,
+  workoutExerciseId: string,
   input: Partial<CreateSetInput>,
 ): Promise<ExerciseSet> {
+  // Scope the update to both setId AND workoutExerciseId so a user cannot
+  // modify a set that belongs to a different exercise by guessing the setId.
   const { data, error } = await supabase
     .from("exercise_sets")
     .update(input)
     .eq("id", setId)
+    .eq("workout_exercise_id", workoutExerciseId)
     .select()
     .single();
   if (error || !data) throw new NotFoundError("Exercise set");
   return data as ExerciseSet;
 }
 
-export async function deleteSet(supabase: SupabaseClient, setId: string): Promise<void> {
-  const { error } = await supabase.from("exercise_sets").delete().eq("id", setId);
+export async function deleteSet(
+  supabase: SupabaseClient,
+  setId: string,
+  workoutExerciseId: string,
+): Promise<void> {
+  // Scope the delete to both setId AND workoutExerciseId so a user cannot
+  // delete a set belonging to a different exercise by guessing the setId.
+  const { error } = await supabase
+    .from("exercise_sets")
+    .delete()
+    .eq("id", setId)
+    .eq("workout_exercise_id", workoutExerciseId);
   if (error) throw error;
 }

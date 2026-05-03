@@ -62,8 +62,14 @@ export function SleepLogForm({ onSuccess }: Props) {
       },
       {
         onSuccess: () => {
-          setNotes("");
+          // Reset all fields to the defaults, not just notes/quality —
+          // leaving dates unchanged would allow accidental duplicate submissions.
+          setSleepDate(localDateStr(new Date(Date.now() - 86_400_000)));
+          setSleepTime("23:00");
+          setWakeDate(localDateStr(new Date()));
+          setWakeTime("07:00");
           setQuality("");
+          setNotes("");
           onSuccess?.();
         },
         onError: (e) => setErr(e.message || "Failed to save. Please try again."),
@@ -74,7 +80,11 @@ export function SleepLogForm({ onSuccess }: Props) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       {err && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/30 dark:text-red-400">
+        <p
+          role="alert"
+          aria-live="assertive"
+          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/30 dark:text-red-400"
+        >
           {err}
         </p>
       )}

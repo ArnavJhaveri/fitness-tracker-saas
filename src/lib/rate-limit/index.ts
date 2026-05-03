@@ -149,12 +149,13 @@ async function checkRateLimit(key: string, config: RateLimitConfig): Promise<Rat
 export async function enforceRateLimit(prefix: string, config: RateLimitConfig): Promise<void> {
   const headerStore = await headers();
 
-  // On Vercel, x-forwarded-for is set by the edge network and can be trusted.
-  // For other hosts without a verified proxy, fall back to x-real-ip or "unknown".
-  const ip =
-    headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    headerStore.get("x-real-ip") ??
-    "unknown";
+  // x-real-ip is a single, trusted header set by reverse proxies (nginx, Vercel).
+  // When it is absent, fall back to the LAST entry in x-forwarded-for — the IP
+  // most recently appended by the load balancer — rather than the first entry,
+  // which is supplied by the client and can be spoofed.
+  const xff = headerStore.get("x-forwarded-for");
+  const lastXff = xff ? xff.split(",").at(-1)?.trim() : undefined;
+  const ip = headerStore.get("x-real-ip") ?? lastXff ?? "unknown";
 
   const result = await checkRateLimit(`${prefix}:${ip}`, config);
 

@@ -39,42 +39,46 @@ export function TrendLineChart({
     );
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="opacity-10" />
-        <XAxis
-          dataKey="date"
-          tick={{ fontSize: 10, fill: "currentColor" }}
-          tickLine={false}
-          interval="preserveStartEnd"
-          className="text-gray-500"
-        />
-        <YAxis
-          tick={{ fontSize: 10, fill: "currentColor" }}
-          tickLine={false}
-          axisLine={false}
-          className="text-gray-500"
-        />
-        <Tooltip
-          contentStyle={{
-            background: "#1f2937",
-            border: "none",
-            borderRadius: "8px",
-            fontSize: "12px",
-            color: "#f9fafb",
-          }}
-          formatter={(v) => [`${v as number}${unit}`, label]}
-        />
-        <Line
-          type="monotone"
-          dataKey="value"
-          stroke={color}
-          strokeWidth={2}
-          dot={false}
-          activeDot={{ r: 4 }}
-          connectNulls={false}
-        />
-      </LineChart>
-    </ResponsiveContainer>
+    // minHeight prevents ResponsiveContainer from collapsing to 0 px on
+    // mobile Safari where the parent has no explicit height set (Flexbox quirk).
+    <div role="img" aria-label={`${label} trend line chart`} style={{ minHeight: height }}>
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={data} margin={{ top: 4, right: 4, left: -24, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="opacity-10" />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 10, fill: "currentColor" }}
+            tickLine={false}
+            interval="preserveStartEnd"
+            className="text-gray-500"
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: "currentColor" }}
+            tickLine={false}
+            axisLine={false}
+            className="text-gray-500"
+          />
+          <Tooltip
+            contentStyle={{
+              background: "#1f2937",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "12px",
+              color: "#f9fafb",
+            }}
+            formatter={(v) => [`${v as number}${unit}`, label]}
+          />
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke={color}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 4 }}
+            connectNulls={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

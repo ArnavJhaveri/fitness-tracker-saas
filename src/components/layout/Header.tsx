@@ -16,10 +16,16 @@ export function Header({ title }: HeaderProps) {
   const router = useRouter();
 
   async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push(ROUTES.LOGIN);
-    router.refresh();
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push(ROUTES.LOGIN);
+      router.refresh();
+    } catch {
+      // Sign-out errors are non-fatal — the session cookie is cleared locally
+      // even if the server request fails, so navigate to login regardless.
+      router.push(ROUTES.LOGIN);
+    }
   }
 
   return (

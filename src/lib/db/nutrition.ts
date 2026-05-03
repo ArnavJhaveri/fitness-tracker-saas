@@ -22,9 +22,14 @@ export async function searchFoodItems(
     .range((params.page - 1) * params.per_page, params.page * params.per_page - 1);
 
   if (query.trim()) q = q.ilike("name", `%${query.trim()}%`);
+
   if (params.custom_only) {
     // Only return the current user's custom items, not all custom items
     q = q.eq("is_custom", true).eq("created_by", userId);
+  } else {
+    // Always exclude other users' private items from the default search.
+    // Return public items (is_custom = false) OR the caller's own custom items.
+    q = q.or(`is_custom.eq.false,and(is_custom.eq.true,created_by.eq.${userId})`);
   }
 
   const { data, error, count } = await q;
@@ -55,7 +60,13 @@ export async function listMeals(
 ): Promise<{ data: Meal[]; count: number }> {
   let query = supabase
     .from("meals")
-    .select(`*, meal_items ( *, food_items ( * ) )`, { count: "exact" })
+    // Select only the food_item columns needed for macro calculations —
+    // avoids fetching sugar_per_100g, sodium_per_100g, and other unused fields
+    // across potentially hundreds of items in a paginated list.
+    .select(
+      `*, meal_items ( *, food_items ( id, name, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, serving_size_g, is_custom, created_by ) )`,
+      { count: "exact" },
+    )
     .eq("user_id", userId)
     .order("logged_at", { ascending: false })
     .range((params.page - 1) * params.per_page, params.page * params.per_page - 1);

@@ -19,6 +19,7 @@ import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { createWorkoutSessionSchema, paginationSchema, dateRangeSchema } from "@/lib/validations";
 import { parseRequestBody, parseSearchParams } from "@/lib/validations/shared";
 import { logger } from "@/lib/logger";
+import { listWorkoutSessions, createWorkoutSession } from "@/lib/db/workouts";
 import type { ApiSuccess } from "@/types/api";
 import type { WorkoutSession } from "@/types/database";
 
@@ -39,27 +40,18 @@ export async function GET(request: NextRequest) {
       listQuerySchema,
     );
 
-    let query = supabase
-      .from("workout_sessions")
-      .select("*", { count: "exact" })
-      .eq("user_id", user.id)
-      .order("started_at", { ascending: false })
-      .range((params.page - 1) * params.per_page, params.page * params.per_page - 1);
-
-    if (params.from) query = query.gte("started_at", params.from);
-    if (params.to) query = query.lte("started_at", params.to);
-
-    const { data, error, count } = await query;
-    if (error) throw error;
+    // Delegate to the DB layer — keeps the route handler as a thin HTTP adapter
+    // and avoids duplicating query logic that already lives in listWorkoutSessions.
+    const { data, count } = await listWorkoutSessions(supabase, user.id, params);
 
     const response: ApiSuccess<WorkoutSession[]> = {
       success: true,
-      data: (data ?? []) as WorkoutSession[],
+      data,
       meta: {
         page: params.page,
         per_page: params.per_page,
-        total: count ?? 0,
-        total_pages: Math.ceil((count ?? 0) / params.per_page),
+        total: count,
+        total_pages: Math.ceil(count / params.per_page),
       },
     };
 
@@ -80,21 +72,11 @@ export async function POST(request: NextRequest) {
     if (!user) throw new UnauthorizedError();
 
     const body = await parseRequestBody(request, createWorkoutSessionSchema);
+    const session = await createWorkoutSession(supabase, user.id, body);
 
-    const { data, error } = await supabase
-      .from("workout_sessions")
-      .insert({ ...body, user_id: user.id })
-      .select()
-      .single();
+    logger.info("Workout session created", { userId: user.id, sessionId: session.id });
 
-    if (error) throw error;
-
-    logger.info("Workout session created", {
-      userId: user.id,
-      sessionId: (data as WorkoutSession).id,
-    });
-
-    const response: ApiSuccess<WorkoutSession> = { success: true, data: data as WorkoutSession };
+    const response: ApiSuccess<WorkoutSession> = { success: true, data: session };
     return NextResponse.json(response, { status: 201 });
   } catch (err) {
     return handleRouteError(err);

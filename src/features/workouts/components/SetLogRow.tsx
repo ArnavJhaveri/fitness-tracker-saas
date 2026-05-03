@@ -53,7 +53,11 @@ export function SetLogRow({ sessionId, workoutExercise }: Props) {
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-gray-100 p-4 dark:border-gray-700">
-      {err && <p className="text-xs text-red-500 dark:text-red-400">{err}</p>}
+      {err && (
+        <p role="alert" aria-live="assertive" className="text-xs text-red-500 dark:text-red-400">
+          {err}
+        </p>
+      )}
       <p className="font-medium text-gray-900 dark:text-gray-100">
         {workoutExercise.exercises?.name ?? "Exercise"}
       </p>
@@ -75,6 +79,7 @@ export function SetLogRow({ sessionId, workoutExercise }: Props) {
                 onClick={() =>
                   deleteSet({ sessionId, exerciseId: workoutExercise.id, setId: set.id })
                 }
+                aria-label={`Delete set ${set.set_number}`}
                 className="ml-auto text-gray-300 hover:text-red-400"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -89,16 +94,18 @@ export function SetLogRow({ sessionId, workoutExercise }: Props) {
         <input
           type="number"
           placeholder="kg"
+          aria-label="Weight in kilograms"
           value={kg}
           onChange={(e) => setKg(e.target.value)}
-          className="h-9 w-20 rounded-lg border border-gray-300 px-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+          className="h-9 min-w-0 flex-1 rounded-lg border border-gray-300 px-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none sm:w-20 sm:flex-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
         />
         <input
           type="number"
           placeholder="reps"
+          aria-label="Number of repetitions"
           value={reps}
           onChange={(e) => setReps(e.target.value)}
-          className="h-9 w-20 rounded-lg border border-gray-300 px-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+          className="h-9 min-w-0 flex-1 rounded-lg border border-gray-300 px-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none sm:w-20 sm:flex-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
         />
         <label className="flex items-center gap-1.5 text-xs text-gray-500">
           <input
