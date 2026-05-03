@@ -1,4 +1,13 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
+
+// ─── Bundle analysis ──────────────────────────────────────────────────────────
+// Run: ANALYZE=true npm run build
+// Opens an interactive treemap showing what is in each bundle.
+const withBundleAnalyzer =
+  process.env.ANALYZE === "true"
+    ? (await import("@next/bundle-analyzer")).default({ enabled: true })
+    : (c: NextConfig) => c;
 
 // ─── Content Security Policy ──────────────────────────────────────────────────
 // Assembled as an array so individual directives are easy to read and audit.
@@ -27,7 +36,10 @@ const cspDirectives = [
   "font-src 'self'",
   // Network: API calls go to the same origin; Supabase JS calls go to
   // the Supabase project. The wss:// entry covers Supabase Realtime.
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+  // sentry.io is added for error reporting in production.
+  isDev
+    ? "connect-src 'self' https://*.supabase.co wss://*.supabase.co ws://localhost:*"
+    : "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io",
   // Forbid <iframe>, <object>, <embed>, and plugin content
   "frame-src 'none'",
   "frame-ancestors 'none'",
@@ -73,7 +85,6 @@ const nextConfig: NextConfig = {
           // ── HSTS ─────────────────────────────────────────────────────────
           // Instruct browsers to use HTTPS for 2 years (once deployed).
           // preload + includeSubDomains added for HSTS preload-list eligibility.
-          // Remove or shorten max-age if the domain has non-HTTPS subdomains.
           {
             key: "Strict-Transport-Security",
             value: "max-age=63072000; includeSubDomains; preload",
@@ -93,6 +104,7 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
 
   images: {
+    // Optimise images from Supabase Storage automatically.
     remotePatterns: [
       {
         protocol: "https",
@@ -101,7 +113,41 @@ const nextConfig: NextConfig = {
         pathname: "/storage/v1/object/public/**",
       },
     ],
+    // Serve modern formats (AVIF → WebP → fallback) for significant size savings.
+    formats: ["image/avif", "image/webp"],
   },
+
+  // Minify output in production.
+  compiler: {
+    // Remove console.log in production builds (keep console.error/warn).
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
+  },
+
+  // Experimental: enable React compiler for automatic memoisation (Next.js 16+)
+  // experimental: { reactCompiler: true },
 };
 
-export default nextConfig;
+// ─── Sentry wrapper ───────────────────────────────────────────────────────────
+// withSentryConfig wraps the build to upload source maps and instrument
+// server components. Options here control the Sentry Webpack plugin.
+const sentryConfig = withSentryConfig(withBundleAnalyzer(nextConfig), {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Upload source maps only in CI/production — not on local builds.
+  // After uploading, delete the .map files so they are not served publicly.
+  sourcemaps: {
+    disable: !process.env.CI,
+    filesToDeleteAfterUpload: process.env.CI ? ["**/*.js.map", "**/*.cjs.map"] : undefined,
+  },
+
+  // Silences Sentry's build output noise in development.
+  silent: !process.env.CI,
+
+  // Automatically instrument route handlers, API routes, and server components.
+  autoInstrumentServerFunctions: true,
+  autoInstrumentMiddleware: true,
+  autoInstrumentAppDirectory: true,
+});
+
+export default sentryConfig;

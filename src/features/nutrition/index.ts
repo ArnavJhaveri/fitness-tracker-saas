@@ -12,5 +12,5 @@ export {
   MEALS_KEY,
 } from "./hooks/useNutrition";
 export { useFoodSearch } from "./hooks/useFoodSearch";
-export { calcItemMacros, calcMealMacros, calcDayMacros, calcMacroPercents } from "./utils/macros";
+export { calcMealMacros, calcDayMacros, calcMacroPercents } from "./utils/macros";
 export type { MacroTotals } from "./utils/macros";

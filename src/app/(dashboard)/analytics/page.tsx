@@ -5,8 +5,7 @@ import { Header } from "@/components/layout/Header";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { WeeklyBarChart } from "@/features/analytics/components/WeeklyBarChart";
-import { TrendLineChart } from "@/features/analytics/components/TrendLineChart";
+import { LazyWeeklyBarChart, LazyTrendLineChart } from "@/features/analytics/components/LazyCharts";
 import { useThirtyDaySummary } from "@/features/analytics/hooks/useAnalytics";
 import {
   calcWorkoutStreak,
@@ -210,7 +209,7 @@ export default function AnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <WeeklyBarChart summaries={summaries} height={150} />
+            <LazyWeeklyBarChart summaries={summaries} height={150} />
           </CardContent>
         </Card>
 
@@ -226,7 +225,7 @@ export default function AnalyticsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <TrendLineChart
+            <LazyTrendLineChart
               data={waterData}
               color="#3b82f6"
               label="Water"
@@ -248,7 +247,13 @@ export default function AnalyticsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <TrendLineChart data={sleepData} color="#8b5cf6" label="Sleep" unit="h" height={160} />
+            <LazyTrendLineChart
+              data={sleepData}
+              color="#8b5cf6"
+              label="Sleep"
+              unit="h"
+              height={160}
+            />
           </CardContent>
         </Card>
 
@@ -261,7 +266,7 @@ export default function AnalyticsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <TrendLineChart
+            <LazyTrendLineChart
               data={calorieData}
               color="#f97316"
               label="Calories"
@@ -278,7 +283,7 @@ export default function AnalyticsPage() {
               <CardTitle>Weight trend (7-day avg)</CardTitle>
             </CardHeader>
             <CardContent>
-              <TrendLineChart
+              <LazyTrendLineChart
                 data={weightMA}
                 color="#6366f1"
                 label="Weight"

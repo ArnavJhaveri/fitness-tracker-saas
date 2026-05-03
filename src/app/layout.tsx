@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { WebVitals } from "@/components/WebVitals";
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from "@/constants/app";
 
 const geist = Geist({
@@ -45,7 +46,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${geist.variable} h-full`} suppressHydrationWarning>
       <body className="h-full">
         <AuthProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <QueryProvider>
+            <WebVitals />
+            {children}
+          </QueryProvider>
         </AuthProvider>
       </body>
     </html>

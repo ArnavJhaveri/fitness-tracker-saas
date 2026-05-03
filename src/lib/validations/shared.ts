@@ -30,7 +30,10 @@ export async function parseRequestBody<T>(request: Request, schema: z.ZodSchema<
 
   const result = schema.safeParse(body);
   if (!result.success) {
-    const details = result.error.flatten().fieldErrors as Record<string, string[] | undefined>;
+    const raw = result.error.flatten().fieldErrors;
+    const details = Object.fromEntries(
+      Object.entries(raw).filter((e): e is [string, string[]] => e[1] !== undefined),
+    );
     throw new ValidationError("Validation failed", details);
   }
 
@@ -48,7 +51,10 @@ export function parseSearchParams<T>(
   const raw = params instanceof URLSearchParams ? Object.fromEntries(params) : params;
   const result = schema.safeParse(raw);
   if (!result.success) {
-    const details = result.error.flatten().fieldErrors as Record<string, string[] | undefined>;
+    const fieldErrors = result.error.flatten().fieldErrors;
+    const details = Object.fromEntries(
+      Object.entries(fieldErrors).filter((e): e is [string, string[]] => e[1] !== undefined),
+    );
     throw new ValidationError("Invalid query parameters", details);
   }
   return result.data;
