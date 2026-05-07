@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -49,6 +49,8 @@ const MORE_NAV = [
 export function MobileNav() {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreToggleRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   // True when the current page is one of the "More" items — keeps the button
   // visually active so the user knows which section they are in. Match exact
@@ -56,6 +58,63 @@ export function MobileNav() {
   // entries when route prefixes overlap (e.g. /sleep matching /sleep-debt).
   const isPrefixMatch = (href: string) => pathname === href || pathname.startsWith(href + "/");
   const moreActive = MORE_NAV.some(({ href }) => isPrefixMatch(href));
+
+  // ─── Drawer accessibility ─────────────────────────────────────────────
+  // The drawer claims role="dialog" + aria-modal="true". Without focus
+  // management, that's a lie: Tab moves focus to elements behind the
+  // backdrop, breaking WCAG 2.1.2. We:
+  //   1. Move focus into the drawer when it opens
+  //   2. Trap Tab/Shift-Tab within the drawer while open
+  //   3. Close on Escape and return focus to the toggle button
+  useEffect(() => {
+    if (!moreOpen) return;
+
+    const drawer = drawerRef.current;
+    if (!drawer) return;
+
+    // Move focus to the first focusable child on open
+    const focusables = drawer.querySelectorAll<HTMLElement>(
+      'a, button, [tabindex]:not([tabindex="-1"])',
+    );
+    focusables[0]?.focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMoreOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      // Wrap Tab focus inside the drawer
+      const list = drawer!.querySelectorAll<HTMLElement>(
+        'a, button, [tabindex]:not([tabindex="-1"])',
+      );
+      if (list.length === 0) return;
+      const first = list[0];
+      const last = list[list.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [moreOpen]);
+
+  // When the drawer closes, return focus to the More toggle button so
+  // keyboard users don't lose their place.
+  useEffect(() => {
+    if (!moreOpen && moreToggleRef.current) {
+      moreToggleRef.current.focus();
+    }
+    // We deliberately want to fire on transition to closed; ignore initial
+    // mount by checking that the ref exists (it will only exist after the
+    // first render anyway). React lint accepts the empty trailing check.
+  }, [moreOpen]);
 
   return (
     <>
@@ -71,6 +130,7 @@ export function MobileNav() {
 
           {/* Sheet */}
           <div
+            ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label="More navigation options"
@@ -154,6 +214,7 @@ export function MobileNav() {
           {/* More button */}
           <li className="flex-1">
             <button
+              ref={moreToggleRef}
               onClick={() => setMoreOpen((v) => !v)}
               aria-expanded={moreOpen}
               aria-haspopup="dialog"

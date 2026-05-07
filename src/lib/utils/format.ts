@@ -43,24 +43,6 @@ export function formatMacro(g: number): string {
   return `${g.toFixed(1)}g`;
 }
 
-/** Relative date label: "Today", "Yesterday", or locale date */
-export function formatRelativeDate(isoDate: string): string {
-  // Append local noon so date-only strings ("YYYY-MM-DD") are parsed in local
-  // time rather than UTC midnight. Without this, users in negative UTC offsets
-  // (e.g. UTC-5) see the prior calendar day — "Today" never matches.
-  const dateStr = isoDate.length === 10 ? isoDate + "T12:00:00" : isoDate;
-  const date = new Date(dateStr);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  const normalize = (d: Date) => d.toDateString();
-  if (normalize(date) === normalize(today)) return "Today";
-  if (normalize(date) === normalize(yesterday)) return "Yesterday";
-
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
 /** Format a percentage: 0.75 → "75%" */
 export function formatPercent(value: number, decimals = 0): string {
   return `${(value * 100).toFixed(decimals)}%`;

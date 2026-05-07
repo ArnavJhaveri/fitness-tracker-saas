@@ -15,15 +15,6 @@ export function useExercises(params: ListExercisesParams = {}) {
   });
 }
 
-export function useExercise(id: string | null) {
-  return useQuery<Exercise>({
-    queryKey: [...EXERCISES_KEY, "detail", id],
-    queryFn: () => exercisesService.get(id!),
-    enabled: id != null,
-    staleTime: 5 * 60_000,
-  });
-}
-
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {

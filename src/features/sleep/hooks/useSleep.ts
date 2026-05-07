@@ -24,19 +24,6 @@ export function useLogSleep() {
   });
 }
 
-export function useUpdateSleep() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof sleepService.update>[1] }) =>
-      sleepService.update(id, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: SLEEP_KEY });
-      // Updating duration changes daily sleep totals — keep analytics fresh
-      qc.invalidateQueries({ queryKey: ["analytics"] });
-    },
-  });
-}
-
 export function useDeleteSleep() {
   const qc = useQueryClient();
   return useMutation({

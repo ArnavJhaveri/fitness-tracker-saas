@@ -151,7 +151,10 @@ export default function ExercisesPage() {
           </Button>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs — full ARIA wiring: each tab has aria-controls pointing at the
+            list panel, the panel has role="tabpanel" + aria-labelledby tying
+            it back to the active tab. Without these, screen readers announce
+            "tab" but can't navigate to the controlled region. */}
         <div
           role="tablist"
           aria-label="Filter exercises"
@@ -160,8 +163,11 @@ export default function ExercisesPage() {
           {TABS.map((t) => (
             <button
               key={t.value}
+              id={`exercises-tab-${t.value}`}
               role="tab"
               aria-selected={tab === t.value}
+              aria-controls="exercises-tabpanel"
+              tabIndex={tab === t.value ? 0 : -1}
               onClick={() => setTab(t.value)}
               className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                 tab === t.value
@@ -174,39 +180,41 @@ export default function ExercisesPage() {
           ))}
         </div>
 
-        {/* List */}
-        {isLoading ? (
-          <div className="flex flex-col gap-2">
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-16 rounded-xl" />
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <EmptyState
-            icon={Dumbbell}
-            title={tab === "archived" ? "No archived exercises" : "No exercises found"}
-            description={
-              tab === "mine"
-                ? "Create a custom exercise to keep things you do regularly close at hand."
-                : tab === "archived"
-                  ? "Archive a custom exercise to hide it from the picker without losing history."
-                  : "Try a different search term, or create a custom exercise."
-            }
-          />
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {filtered.map((ex) => (
-              <li key={ex.id}>
-                <ExerciseRow
-                  exercise={ex}
-                  onEdit={() => setEditing(ex)}
-                  onArchive={() => handleArchive(ex)}
-                  onRestore={() => handleRestore(ex)}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
+        {/* List — the tab panel. */}
+        <div id="exercises-tabpanel" role="tabpanel" aria-labelledby={`exercises-tab-${tab}`}>
+          {isLoading ? (
+            <div className="flex flex-col gap-2">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-16 rounded-xl" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={Dumbbell}
+              title={tab === "archived" ? "No archived exercises" : "No exercises found"}
+              description={
+                tab === "mine"
+                  ? "Create a custom exercise to keep things you do regularly close at hand."
+                  : tab === "archived"
+                    ? "Archive a custom exercise to hide it from the picker without losing history."
+                    : "Try a different search term, or create a custom exercise."
+              }
+            />
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {filtered.map((ex) => (
+                <li key={ex.id}>
+                  <ExerciseRow
+                    exercise={ex}
+                    onEdit={() => setEditing(ex)}
+                    onArchive={() => handleArchive(ex)}
+                    onRestore={() => handleRestore(ex)}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );

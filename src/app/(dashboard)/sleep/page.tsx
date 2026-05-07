@@ -7,12 +7,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { SleepLogForm } from "@/features/sleep/components/SleepLogForm";
 import { SleepHistoryList } from "@/features/sleep/components/SleepHistoryList";
 import { useSleepEntries } from "@/features/sleep/hooks/useSleep";
-
-function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
+import { formatDuration } from "@/lib/utils/format";
 
 export default function SleepPage() {
   const { data: entries = [], isLoading } = useSleepEntries();

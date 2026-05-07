@@ -78,7 +78,9 @@ export default function GoalsPage() {
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle>Goals</CardTitle>
-              {/* Status filter tabs */}
+              {/* Status filter tabs — ARIA-linked to the panel below via
+                  aria-controls / aria-labelledby so screen readers can
+                  navigate from a tab to its controlled region. */}
               <div
                 role="tablist"
                 aria-label="Filter goals by status"
@@ -87,8 +89,11 @@ export default function GoalsPage() {
                 {STATUS_TABS.map((tab) => (
                   <button
                     key={String(tab.value)}
+                    id={`goals-tab-${tab.value ?? "all"}`}
                     role="tab"
                     aria-selected={statusFilter === tab.value}
+                    aria-controls="goals-tabpanel"
+                    tabIndex={statusFilter === tab.value ? 0 : -1}
                     onClick={() => setStatusFilter(tab.value)}
                     className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                       statusFilter === tab.value
@@ -102,7 +107,11 @@ export default function GoalsPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent
+            id="goals-tabpanel"
+            role="tabpanel"
+            aria-labelledby={`goals-tab-${statusFilter ?? "all"}`}
+          >
             {isLoading ? (
               <div className="flex flex-col gap-3">
                 {[0, 1, 2].map((i) => (
