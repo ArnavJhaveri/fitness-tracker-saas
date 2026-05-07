@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
+import { OnboardingBanner } from "@/components/dashboard/OnboardingBanner";
 import { ROUTES } from "@/constants";
 
 /**
@@ -25,6 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* Main content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        <OnboardingBanner />
         <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">{children}</main>
       </div>
 

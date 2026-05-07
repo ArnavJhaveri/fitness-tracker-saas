@@ -10,6 +10,9 @@ export const ROUTES = {
   FORGOT_PASSWORD: "/forgot-password",
   RESET_PASSWORD: "/reset-password",
 
+  // First-run wizard (skippable; soft-prompted via dashboard banner)
+  ONBOARDING: "/onboarding",
+
   // Protected — dashboard
   DASHBOARD: "/dashboard",
   WORKOUTS: "/dashboard/workouts",
