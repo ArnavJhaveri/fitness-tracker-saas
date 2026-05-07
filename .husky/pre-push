@@ -1,0 +1,68 @@
+# ============================================================
+# pre-push: refuse to push when the remote URL has a credential
+# embedded in it.
+# ============================================================
+# Background: if `git remote set-url` is ever run with a URL like
+#   https://<user>:<token>@github.com/owner/repo.git
+# the token sits in plaintext in .git/config and is transmitted on
+# every push. Catching it here lets us fail fast — the developer
+# can clean up before any data leaves the machine.
+#
+# What we look for: a userinfo segment `://something:something@`
+# in any remote URL, OR known token prefixes (gho_, ghp_, github_pat_,
+# sk_live_, sk_test_, AKIA, AIza, xoxb-, glpat-).
+#
+# Bypass (use sparingly, with your own risk): `git push --no-verify`.
+# ============================================================
+
+set -e
+
+# $1 = remote name (e.g. "origin"); $2 = remote URL git will push to.
+REMOTE_NAME="${1:-origin}"
+REMOTE_URL="${2:-}"
+
+# Fall back to the configured URL if git didn't pass one (some hooks
+# invoke pre-push without args, e.g. via custom scripts).
+if [ -z "$REMOTE_URL" ]; then
+  REMOTE_URL="$(git remote get-url "$REMOTE_NAME" 2>/dev/null || true)"
+fi
+
+if [ -z "$REMOTE_URL" ]; then
+  # No remote URL to check — nothing to do.
+  exit 0
+fi
+
+# Pattern 1: "://user:secret@host" — credential-embedded URL of any kind.
+if printf '%s' "$REMOTE_URL" | grep -Eq '://[^/]+:[^/@]+@'; then
+  printf '\n'
+  printf '✗ pre-push: refusing to push — your remote URL contains an embedded credential.\n'
+  printf '\n'
+  printf '  Remote: %s\n' "$REMOTE_NAME"
+  printf '  URL:    %s\n' "$REMOTE_URL"
+  printf '\n'
+  printf '  This token will be transmitted in plaintext on every push and may be\n'
+  printf '  leaked via proxy logs or shell history. Fix it before continuing:\n'
+  printf '\n'
+  printf '    1. Revoke the embedded token at https://github.com/settings/tokens\n'
+  printf '    2. Reset the remote to a clean URL, e.g.:\n'
+  printf '         git remote set-url %s git@github.com:OWNER/REPO.git\n' "$REMOTE_NAME"
+  printf '       (or use HTTPS without auth + macOS Keychain via gh auth login)\n'
+  printf '    3. Run the push again.\n'
+  printf '\n'
+  exit 1
+fi
+
+# Pattern 2: well-known token prefixes anywhere in the URL.
+# These are the same shapes git providers and major SaaS APIs publish.
+if printf '%s' "$REMOTE_URL" | grep -Eq 'gho_[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{40,}|glpat-[A-Za-z0-9_-]{20,}|sk_(live|test)_[A-Za-z0-9]{20,}|AKIA[A-Z0-9]{16}|AIza[A-Za-z0-9_-]{30,}|xoxb-[0-9A-Za-z-]{20,}'; then
+  printf '\n'
+  printf '✗ pre-push: refusing to push — your remote URL contains what looks like a secret token.\n'
+  printf '  Remote: %s\n' "$REMOTE_NAME"
+  printf '  URL:    %s\n' "$REMOTE_URL"
+  printf '\n'
+  printf '  Revoke the token, reset the remote URL, then push again.\n'
+  printf '\n'
+  exit 1
+fi
+
+exit 0
