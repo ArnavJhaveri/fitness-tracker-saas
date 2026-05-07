@@ -20,7 +20,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
-    "analyze": "ANALYZE=true npm run build"
+    "analyze": "ANALYZE=true npm run build",
+    "import:sheet": "node scripts/import-sheet.mjs"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.51.0",
