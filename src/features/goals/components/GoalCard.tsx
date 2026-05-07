@@ -26,7 +26,17 @@ export function GoalCard({ goal }: Props) {
       : null;
 
   function markComplete() {
-    updateGoal({ id: goal.id, data: { status: "completed" } });
+    updateGoal(
+      { id: goal.id, data: { status: "completed" } },
+      { onError: () => window.alert("Failed to update goal. Please try again.") },
+    );
+  }
+
+  function handleDelete() {
+    if (!window.confirm(`Delete "${goal.title}"? This cannot be undone.`)) return;
+    deleteGoal(goal.id, {
+      onError: () => window.alert("Failed to delete goal. Please try again."),
+    });
   }
 
   return (
@@ -77,7 +87,8 @@ export function GoalCard({ goal }: Props) {
           </button>
         )}
         <button
-          onClick={() => deleteGoal(goal.id)}
+          onClick={handleDelete}
+          aria-label={`Delete goal ${goal.title}`}
           className="ml-auto flex items-center gap-1.5 text-xs text-gray-400 transition-colors hover:text-red-400"
         >
           <Trash2 className="h-3.5 w-3.5" /> Delete

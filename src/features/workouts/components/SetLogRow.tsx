@@ -77,7 +77,10 @@ export function SetLogRow({ sessionId, workoutExercise }: Props) {
               )}
               <button
                 onClick={() =>
-                  deleteSet({ sessionId, exerciseId: workoutExercise.id, setId: set.id })
+                  deleteSet(
+                    { sessionId, exerciseId: workoutExercise.id, setId: set.id },
+                    { onError: (e) => setErr(e.message || "Failed to delete set.") },
+                  )
                 }
                 aria-label={`Delete set ${set.set_number}`}
                 className="ml-auto text-gray-300 hover:text-red-400"

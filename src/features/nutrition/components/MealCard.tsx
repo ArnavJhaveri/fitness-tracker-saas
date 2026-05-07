@@ -34,8 +34,18 @@ export function MealCard({ meal }: Props) {
   const macros = calcMealMacros(items);
 
   function handleAddFood(food: FoodItem, grams: number) {
-    addItem({ mealId: meal.id, data: { food_item_id: food.id, quantity_grams: grams } });
+    addItem(
+      { mealId: meal.id, data: { food_item_id: food.id, quantity_grams: grams } },
+      { onError: () => window.alert("Failed to add food item. Please try again.") },
+    );
     setAdding(false);
+  }
+
+  function handleDeleteMeal() {
+    if (!window.confirm("Delete this meal and all its items? This cannot be undone.")) return;
+    deleteMeal(meal.id, {
+      onError: () => window.alert("Failed to delete meal. Please try again."),
+    });
   }
 
   return (
@@ -65,7 +75,8 @@ export function MealCard({ meal }: Props) {
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
           <button
-            onClick={() => deleteMeal(meal.id)}
+            onClick={handleDeleteMeal}
+            aria-label="Delete meal"
             className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-red-400 dark:hover:bg-gray-700"
           >
             <Trash2 className="h-4 w-4" />
@@ -102,7 +113,16 @@ export function MealCard({ meal }: Props) {
                   </p>
                 </div>
                 <button
-                  onClick={() => deleteItem({ mealId: meal.id, itemId: item.id })}
+                  onClick={() =>
+                    deleteItem(
+                      { mealId: meal.id, itemId: item.id },
+                      {
+                        onError: () =>
+                          window.alert("Failed to remove food item. Please try again."),
+                      },
+                    )
+                  }
+                  aria-label={`Remove ${food?.name ?? "food item"}`}
                   className="text-gray-300 hover:text-red-400"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
