@@ -3,11 +3,28 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { nutritionService } from "@/services/nutrition.service";
 import { localDateStr } from "@/lib/utils/date";
+import type { FoodItem } from "@/types/database";
 
 const today = () => localDateStr();
 
 export const MEALS_KEY = ["meals"] as const;
 export const FOOD_KEY = ["food-items"] as const;
+export const RECENT_FOODS_KEY = ["food-items", "recent"] as const;
+
+/**
+ * The user's most recently-logged foods. Powers the chip row in the food
+ * logger so common foods are 1-tap. Capped server-side at 12 items.
+ *
+ * Cache duration: 5 minutes — recent-foods drift slowly relative to how
+ * often the page is opened.
+ */
+export function useRecentFoods() {
+  return useQuery<FoodItem[]>({
+    queryKey: RECENT_FOODS_KEY,
+    queryFn: () => nutritionService.recentFoods(),
+    staleTime: 5 * 60_000,
+  });
+}
 
 export function useMeals(date?: string) {
   const d = date ?? today();
@@ -64,6 +81,9 @@ export function useAddMealItem() {
       qc.invalidateQueries({ queryKey: MEALS_KEY });
       // Adding food items changes calorie totals — keep analytics in sync
       qc.invalidateQueries({ queryKey: ["analytics"] });
+      // The food just logged should appear in the recent-foods chip row,
+      // so invalidate that too.
+      qc.invalidateQueries({ queryKey: RECENT_FOODS_KEY });
     },
   });
 }

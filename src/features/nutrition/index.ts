@@ -1,15 +1,16 @@
 // Nutrition feature — public API
-export { FoodSearch } from "./components/FoodSearch";
+export { LogFoodFlow } from "./components/LogFoodFlow";
 export { MacroSummary } from "./components/MacroSummary";
 export { MealCard } from "./components/MealCard";
-export { MealForm } from "./components/MealForm";
 export {
-  useMeals,
+  MEALS_KEY,
+  RECENT_FOODS_KEY,
+  useAddMealItem,
   useCreateMeal,
   useDeleteMeal,
-  useAddMealItem,
   useDeleteMealItem,
-  MEALS_KEY,
+  useMeals,
+  useRecentFoods,
 } from "./hooks/useNutrition";
 export { useFoodSearch } from "./hooks/useFoodSearch";
 export { calcMealMacros, calcDayMacros, calcMacroPercents } from "./utils/macros";

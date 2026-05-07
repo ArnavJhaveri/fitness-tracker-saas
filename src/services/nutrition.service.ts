@@ -54,6 +54,9 @@ export const nutritionService = {
   searchFood: (p: FoodSearchParams = {}) =>
     apiGet<FoodItem[]>(`/api/nutrition/food-items${buildQuery({ page: 1, per_page: 20, ...p })}`),
 
+  /** Foods the caller logged in the last 14 days, deduped, capped at 12. */
+  recentFoods: () => apiGet<FoodItem[]>(`/api/nutrition/food-items/recent`),
+
   createFoodItem: (data: {
     name: string;
     brand?: string | null;
