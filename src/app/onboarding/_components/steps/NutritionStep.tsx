@@ -27,18 +27,37 @@ const PATTERN_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+// Limits mirror completeOnboardingSchema: each excluded food ≤ 100 chars,
+// list ≤ 50 items. Validated server-side by Zod; we duplicate them here so
+// the user gets immediate feedback rather than a generic error at Finish time.
+const MAX_FOOD_LENGTH = 100;
+const MAX_FOOD_COUNT = 50;
+
 export function NutritionStep({ value, onChange }: Props) {
   const [draft, setDraft] = useState("");
+  const [warning, setWarning] = useState<string | null>(null);
 
   function addExclusion() {
     const trimmed = draft.trim();
     if (!trimmed) return;
+
+    if (value.excluded_foods.length >= MAX_FOOD_COUNT) {
+      setWarning(`You can list up to ${MAX_FOOD_COUNT} foods.`);
+      return;
+    }
+    if (trimmed.length > MAX_FOOD_LENGTH) {
+      setWarning(`Each food must be ${MAX_FOOD_LENGTH} characters or fewer.`);
+      return;
+    }
     if (value.excluded_foods.includes(trimmed)) {
+      // Silent dedupe — no warning needed, just clear the input.
       setDraft("");
       return;
     }
+
     onChange({ ...value, excluded_foods: [...value.excluded_foods, trimmed] });
     setDraft("");
+    setWarning(null);
   }
 
   function removeExclusion(item: string) {
@@ -46,6 +65,8 @@ export function NutritionStep({ value, onChange }: Props) {
       ...value,
       excluded_foods: value.excluded_foods.filter((x) => x !== item),
     });
+    // Clearing an item never triggers warnings; reset any stale message.
+    setWarning(null);
   }
 
   return (
@@ -97,6 +118,12 @@ export function NutritionStep({ value, onChange }: Props) {
             Add
           </button>
         </div>
+
+        {warning && (
+          <p role="alert" aria-live="polite" className="text-xs text-amber-700 dark:text-amber-400">
+            {warning}
+          </p>
+        )}
 
         {value.excluded_foods.length > 0 && (
           <ul className="flex flex-wrap gap-2 pt-1">

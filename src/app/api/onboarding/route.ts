@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
       "water_unit",
       "week_starts_on",
       "timezone",
+      "notifications_enabled",
       "primary_intents",
       "dietary_pattern",
       "excluded_foods",
@@ -78,10 +79,15 @@ export async function POST(request: NextRequest) {
       if (value !== undefined) settingsPatch[key] = value;
     }
 
+    // Upsert (rather than update) defends against the rare case where the
+    // handle_new_user_settings() trigger never fired for this user — e.g.
+    // a legacy account predating migration 002, or a transient trigger
+    // failure. Without onConflict, .update().eq() silently returns 0 rows
+    // and the user gets stuck in an "always-banner" loop with onboarded_at
+    // never being written.
     const { error: settingsError } = await supabase
       .from("user_settings")
-      .update(settingsPatch)
-      .eq("user_id", user.id);
+      .upsert({ user_id: user.id, ...settingsPatch }, { onConflict: "user_id" });
     if (settingsError) throw settingsError;
 
     // ─── Optional: log the starting weight ─────────────────────────────

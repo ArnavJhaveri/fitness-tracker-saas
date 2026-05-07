@@ -17,6 +17,22 @@ import { OnboardingWizard } from "./_components/OnboardingWizard";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Strict allowlist parsers — defend against unexpected DB values (legacy
+ * data, manual SQL) silently leaking into the wizard's initial state and
+ * later being rejected by Zod at submit time. The earlier `as` cast obscured
+ * the actual problem; these helpers guarantee a valid default.
+ */
+function parseWeightUnit(v: unknown): "kg" | "lbs" {
+  return v === "kg" || v === "lbs" ? v : "kg";
+}
+function parseHeightUnit(v: unknown): "cm" | "ft" {
+  return v === "cm" || v === "ft" ? v : "cm";
+}
+function parseTimezone(v: unknown): string {
+  return typeof v === "string" && v.length > 0 ? v : "UTC";
+}
+
 export default async function OnboardingPage() {
   const supabase = await createClient();
   const {
@@ -37,9 +53,9 @@ export default async function OnboardingPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-4 py-8 sm:py-12">
       <OnboardingWizard
-        defaultTimezone={settings?.timezone ?? "UTC"}
-        defaultWeightUnit={(settings?.weight_unit as "kg" | "lbs") ?? "kg"}
-        defaultHeightUnit={(settings?.height_unit as "cm" | "ft") ?? "cm"}
+        defaultTimezone={parseTimezone(settings?.timezone)}
+        defaultWeightUnit={parseWeightUnit(settings?.weight_unit)}
+        defaultHeightUnit={parseHeightUnit(settings?.height_unit)}
       />
     </main>
   );

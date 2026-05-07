@@ -9,9 +9,10 @@ import {
 } from "@/lib/utils/tdee";
 
 describe("calcBMR (Mifflin-St Jeor)", () => {
-  // Reference: 30 y/o, 80 kg, 180 cm
-  // BMR_male = 10*80 + 6.25*180 - 5*30 + 5 = 800 + 1125 - 150 + 5 = 1780
-  // BMR_female = same - 161 - 5 = 1614
+  // Reference subject: 30 y/o, 80 kg, 180 cm.
+  // Mifflin-St Jeor base = 10w + 6.25h − 5a = 800 + 1125 − 150 = 1775.
+  //   male   = base + 5   = 1780
+  //   female = base − 161 = 1614
   it("computes a reasonable male BMR", () => {
     expect(calcBMR({ weight_kg: 80, height_cm: 180, age: 30, sex: "male" })).toBe(1780);
   });

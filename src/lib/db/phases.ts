@@ -6,6 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NotFoundError, ValidationError } from "@/lib/errors";
+import { dayBefore, localDateStrInTz } from "@/lib/utils/date";
 import type { Phase, UUID } from "@/types/database";
 import type { CreatePhaseInput, UpdatePhaseCosmeticInput } from "@/lib/validations/phases";
 
@@ -108,6 +109,13 @@ export async function updatePhaseCosmetic(
 
 /**
  * End a phase without a replacement — drop into companion mode.
+ *
+ * If actualEndDate isn't supplied, default to "today in the user's local
+ * timezone". Using `new Date().toISOString().slice(0,10)` directly would
+ * compute UTC's date, which is wrong by 12+ hours for users in non-UTC
+ * timezones. The DB's `phases_auto_set_end_date` trigger has the same
+ * issue, but is only ever a fallback because callers always pass the
+ * explicit value through this helper.
  */
 export async function endPhase(
   supabase: SupabaseClient,
@@ -115,12 +123,22 @@ export async function endPhase(
   id: UUID,
   actualEndDate?: string,
 ): Promise<Phase> {
+  // Prefer the caller-supplied date; otherwise compute today in the user's
+  // local timezone (read from user_settings).
+  let endDate = actualEndDate;
+  if (!endDate) {
+    const { data: settings } = await supabase
+      .from("user_settings")
+      .select("timezone")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const tz = (settings as { timezone?: string } | null)?.timezone ?? "UTC";
+    endDate = localDateStrInTz(tz);
+  }
+
   const { data, error } = await supabase
     .from("phases")
-    .update({
-      status: "ended",
-      actual_end_date: actualEndDate ?? new Date().toISOString().slice(0, 10),
-    })
+    .update({ status: "ended", actual_end_date: endDate })
     .eq("id", id)
     .eq("user_id", userId)
     .select()
@@ -130,20 +148,28 @@ export async function endPhase(
 }
 
 /**
- * Pivot — supersede the current active phase and start a new one.
+ * Pivot — end the current active phase and start a new one in a structured
+ * sequence of writes.
  *
- * Implemented as two sequential writes (PostgREST has no transaction
- * primitive in the JS client). The unique partial index on (user_id) WHERE
- * status='active' enforces correctness even if step 2 fails before step 1's
- * status flip propagates: the index will reject the second active phase.
+ * PostgREST doesn't expose transactions in the JS client, so we cannot make
+ * the multi-row update atomic. Instead we lean on two invariants:
  *
- * Order matters:
- *   1. Mark old phase superseded (frees the unique index slot)
- *   2. Insert new active phase
- *   3. Patch old phase's superseded_by_phase_id with new phase id
+ *   1. The unique partial index `(user_id) WHERE status='active'` — only
+ *      ONE active phase per user, ever, enforced by the DB.
+ *   2. Step ordering — the old phase's status moves OFF 'active' BEFORE
+ *      the new phase is inserted as 'active'. If those happen in the
+ *      opposite order, the unique index would reject the new insert.
  *
- * If step 2 fails, step 1 leaves the user with no active phase — they can
- * retry the pivot or start fresh. Surface that explicitly.
+ * Writes:
+ *   (1) mark old phase 'superseded' with actual_end_date = newStart − 1
+ *   (2) insert new active phase with derived_from_phase_id pointing at old
+ *   (3) patch old phase's superseded_by_phase_id pointer (cosmetic, non-fatal)
+ *
+ * If (1) succeeds but (2) fails, the user is left with NO active phase
+ * AND the old phase incorrectly marked 'superseded'. We compensate by
+ * rolling old back to 'ended' (a terminal state with no successor) — the
+ * user lands in companion mode rather than a broken-lineage state, and
+ * the error message reflects that accurately.
  */
 export async function pivotPhase(
   supabase: SupabaseClient,
@@ -156,19 +182,21 @@ export async function pivotPhase(
   if (old.status !== "active") {
     throw new ValidationError("Only the active phase can be pivoted.");
   }
+  // The new phase must start strictly AFTER the old phase started — otherwise
+  // we'd compute actual_end_date < start_date and trip phases_actual_end_sane.
+  if (newPhaseInput.start_date <= old.start_date) {
+    throw new ValidationError("The new phase must start after the current phase started.");
+  }
 
-  // 2. Mark old phase as superseded. actual_end_date is set by the trigger
-  //    if we leave it null, but we set it explicitly to "the day before the
-  //    new phase starts" so analytics on the cut-over day are unambiguous.
-  const newStart = new Date(newPhaseInput.start_date);
-  const dayBefore = new Date(newStart.getTime() - 86_400_000).toISOString().slice(0, 10);
+  // dayBefore() does pure UTC calendar arithmetic — DST-safe and matches
+  // how Supabase stores DATE columns (no TZ). new Date(...) - 86_400_000ms
+  // would silently miscompute on the spring-forward boundary.
+  const oldEndDate = dayBefore(newPhaseInput.start_date);
 
+  // 2. Mark old phase as superseded.
   const { data: oldUpdated, error: e1 } = await supabase
     .from("phases")
-    .update({
-      status: "superseded",
-      actual_end_date: dayBefore,
-    })
+    .update({ status: "superseded", actual_end_date: oldEndDate })
     .eq("id", oldPhaseId)
     .eq("user_id", userId)
     .select()
@@ -188,10 +216,20 @@ export async function pivotPhase(
     .single();
 
   if (e2 || !created) {
-    // Best effort: don't try to roll back the supersede. The user is now
-    // in companion mode; they can retry pivot or create a fresh phase.
+    // Compensate: convert old phase from 'superseded' (broken lineage —
+    // implies a successor that doesn't exist) to 'ended' (terminal, no
+    // successor). The user lands in companion mode rather than a confusing
+    // state with a phantom successor.
+    const { error: revertErr } = await supabase
+      .from("phases")
+      .update({ status: "ended" })
+      .eq("id", oldPhaseId)
+      .eq("user_id", userId);
+    if (revertErr) {
+      console.error("[pivotPhase] compensating revert failed", revertErr);
+    }
     throw new ValidationError(
-      `New phase couldn't be created (${e2?.message ?? "unknown error"}). The previous phase has been ended; you can start a new one.`,
+      `New phase couldn't be created (${e2?.message ?? "unknown error"}). Your current phase has been ended without a successor — you can start a new phase from companion mode.`,
     );
   }
 

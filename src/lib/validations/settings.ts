@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidISODate } from "@/lib/utils/date";
 
 const themeEnum = z.enum(["light", "dark", "system"]);
 const weightUnit = z.enum(["kg", "lbs"]);
@@ -66,6 +67,7 @@ export const completeOnboardingSchema = z
     date_of_birth: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .refine(isValidISODate, { message: "Date is not a valid calendar date" })
       .optional(),
     height_cm: z.number().min(50).max(280).optional(),
     current_weight_kg: z.number().min(20).max(400).optional(),
@@ -76,6 +78,9 @@ export const completeOnboardingSchema = z
     water_unit: waterUnit.optional(),
     week_starts_on: z.number().int().min(0).max(6).optional(),
     timezone: z.string().min(1).max(100).optional(),
+    // The wizard's DefaultsStep collects this; without it here the field is
+    // silently dropped because the schema is `.strict()`.
+    notifications_enabled: z.boolean().optional(),
     primary_intents: z.array(primaryIntentEnum).max(10).optional(),
     dietary_pattern: z.string().max(50).optional(),
     excluded_foods: z.array(z.string().max(100)).max(50).optional(),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Sparkles, X } from "lucide-react";
 import type { Route } from "next";
@@ -14,18 +14,36 @@ const SESSION_DISMISS_KEY = "onboarding-banner-dismissed";
  *
  * Visibility logic:
  *   - Show if user_settings.onboarded_at IS NULL
- *   - Hide if the user has dismissed it for the current browser session
- *     (sessionStorage — the prompt returns next time they sign in)
+ *   - Hide if the user has dismissed it for the current browser tab
+ *     (sessionStorage — the prompt returns when the tab is closed and
+ *     reopened, even with the same login session)
+ *
+ * Hydration note: we initialise `dismissed=false` and read sessionStorage
+ * inside a useEffect AFTER mount. Reading sessionStorage synchronously in a
+ * useState initialiser would diverge between SSR (no `window`, returns false)
+ * and the first client render (returns the persisted value), causing a
+ * hydration mismatch warning + a re-render flicker.
  *
  * No middleware redirect — by design. The user can use the app immediately;
  * this banner reminds them they can fill in preferences for a richer experience.
  */
 export function OnboardingBanner() {
   const { data: settings } = useSettings();
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return sessionStorage.getItem(SESSION_DISMISS_KEY) === "1";
-  });
+  const [dismissed, setDismissed] = useState(false);
+
+  // Read sessionStorage AFTER mount so server (no `window`) and client first
+  // render produce the same JSX (banner visible). We only update to `true`
+  // on the client, post-hydration. The "setState-in-effect" rule complains
+  // about cascading renders, but for one-shot browser-API reads on mount
+  // this is the canonical pattern — useSyncExternalStore would require a
+  // store that emits change events, which sessionStorage doesn't (within
+  // the same tab) without a custom emitter.
+  useEffect(() => {
+    if (sessionStorage.getItem(SESSION_DISMISS_KEY) === "1") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount sync, see comment above
+      setDismissed(true);
+    }
+  }, []);
 
   // The hook returns undefined until the first fetch resolves; while loading
   // we render nothing rather than briefly flashing the banner.

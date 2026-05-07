@@ -109,4 +109,37 @@ describe("applyResolution", () => {
     expect(result.active_phase_name).toBe("Spring cut");
     expect(result.active_phase_type).toBe("cut");
   });
+
+  it("falls back to settings when phase fields are explicitly null", () => {
+    // Documents that phase nulls are treated as "no override" not "explicit
+    // zero" — so a phase that only sets target_weight_kg leaves all calorie/
+    // macro targets unchanged from user_settings. Mirrors the "0 is a real
+    // override" test above to guard the boundary.
+    const result = applyResolution(
+      baseSettings,
+      phase({ target_weight_kg: 70, daily_calorie_target: null }),
+    );
+    expect(result.daily_calorie_target).toBe(2200); // from settings, phase had null
+  });
+});
+
+/**
+ * Note: `findPhaseForDate` (the SQL side of resolveDailyTargets) is tested
+ * indirectly via E2E. The status filter excludes 'planned' phases there,
+ * so `applyResolution` is never called with a planned-phase row in the
+ * production code path. If these layers ever drift, this test serves as a
+ * documentation breadcrumb for the contract.
+ */
+describe("applyResolution + planned-phase contract", () => {
+  it("when called with a planned phase (which the SQL layer should never return), the function still resolves cleanly — defence in depth", () => {
+    const planned = phase({
+      status: "planned",
+      daily_calorie_target: 9999,
+    });
+    const result = applyResolution(baseSettings, planned);
+    // applyResolution is pure: if a planned phase is passed in, it WILL apply
+    // its targets. The defence against this misuse is the SQL filter in
+    // findPhaseForDate. Documenting that contract here.
+    expect(result.daily_calorie_target).toBe(9999);
+  });
 });

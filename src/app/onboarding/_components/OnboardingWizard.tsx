@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@/constants";
 import type { CompleteOnboardingInput } from "@/lib/validations/settings";
 import { apiPost } from "@/services/api";
+import { SETTINGS_KEY } from "@/features/settings/hooks/useSettings";
 import { StepIndicator } from "./StepIndicator";
 import { WelcomeStep } from "./steps/WelcomeStep";
-import { AboutYouStep, type AboutYouValue } from "./steps/AboutYouStep";
+import { AboutYouStep, type AboutYouValue, ftInToCm } from "./steps/AboutYouStep";
 import { NutritionStep, type NutritionValue } from "./steps/NutritionStep";
 import { DefaultsStep, type DefaultsValue } from "./steps/DefaultsStep";
 import { FirstPhaseStep, type FirstPhaseValue } from "./steps/FirstPhaseStep";
@@ -33,6 +35,7 @@ interface Props {
  */
 export function OnboardingWizard({ defaultTimezone, defaultWeightUnit, defaultHeightUnit }: Props) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +46,9 @@ export function OnboardingWizard({ defaultTimezone, defaultWeightUnit, defaultHe
     full_name: "",
     date_of_birth: "",
     sex_at_birth: "",
-    height_value: "",
+    height_cm_value: "",
+    height_ft_value: "",
+    height_in_value: "",
     weight_value: "",
     height_unit: defaultHeightUnit,
     weight_unit: defaultWeightUnit,
@@ -53,17 +58,31 @@ export function OnboardingWizard({ defaultTimezone, defaultWeightUnit, defaultHe
     dietary_pattern: "",
     excluded_foods: [],
   });
-  // Try to detect timezone from the browser (Intl) but only on the client —
-  // SSR doesn't have Intl in the user's locale.
-  const browserTz =
-    typeof Intl !== "undefined"
-      ? Intl.DateTimeFormat().resolvedOptions().timeZone
-      : defaultTimezone;
+
+  // Initial timezone defaults to whatever the server passed in (typically the
+  // existing user_settings.timezone or "UTC"). We then update it from the
+  // browser's resolved zone post-mount — doing this synchronously in the
+  // initial state would diverge between SSR (Node's UTC) and the client's
+  // local zone, triggering a hydration mismatch warning + visual flicker.
   const [defaults, setDefaults] = useState<DefaultsValue>({
     week_starts_on: 1,
-    timezone: browserTz || defaultTimezone,
+    timezone: defaultTimezone,
     notifications_enabled: false,
   });
+  // Read-from-browser-API-on-mount is the textbook case for setState-in-effect
+  // even though the lint rule discourages it generally. The alternative
+  // (useSyncExternalStore) doesn't compose with controlled-input state that
+  // the user can later edit. Calling setState ONCE on mount is benign.
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount sync, see comment above
+      if (tz) setDefaults((prev) => ({ ...prev, timezone: tz }));
+    } catch {
+      // Older browsers without full Intl support — leave defaultTimezone in place.
+    }
+  }, []);
+
   const [firstPhase, setFirstPhase] = useState<FirstPhaseValue>({ phase: null });
 
   // ─── Step structure (some are conditional) ─────────────────────────────
@@ -95,26 +114,45 @@ export function OnboardingWizard({ defaultTimezone, defaultWeightUnit, defaultHe
     return defs;
   }, [showNutrition, showFirstPhase]);
 
-  const isLast = step === stepDefs.length - 1;
-  const currentKey = stepDefs[Math.min(step, stepDefs.length - 1)]?.key ?? "welcome";
+  // `step` is the user-controlled index. If the user goes back and deselects
+  // an intent that made a later step visible, stepDefs shrinks and `step` may
+  // temporarily exceed the new bound. Rather than reset state in an effect
+  // (cascading render), we clamp on read and clamp at the click sites.
+  const safeStep = Math.min(step, stepDefs.length - 1);
+  const isLast = safeStep === stepDefs.length - 1;
+  const currentKey = stepDefs[safeStep]?.key ?? "welcome";
+
+  function goNext() {
+    const cap = stepDefs.length - 1;
+    setStep((s) => Math.min(cap, Math.min(s, cap) + 1));
+  }
+  function goBack() {
+    setStep((s) => Math.max(0, Math.min(s, stepDefs.length - 1) - 1));
+  }
 
   // ─── Submission ────────────────────────────────────────────────────────
 
   /**
    * Convert the client-side state into the API payload. Numbers are parsed
    * here (after unit conversion) so the API receives canonical kg/cm values.
+   *
+   * Height handling: the form has separate cm and ft+in input shapes, so we
+   * use `ftInToCm` for the imperial path. Earlier versions used a single
+   * decimal-feet input, which produced a silent ~5 cm error when users typed
+   * "5.9" expecting 5'9" but getting 5.9 ft (≈ 5'10.8").
    */
   function buildPayload(): CompleteOnboardingInput {
-    const heightNum = parseFloat(aboutYou.height_value);
-    const weightNum = parseFloat(aboutYou.weight_value);
+    const heightCm =
+      aboutYou.height_unit === "ft"
+        ? ftInToCm(aboutYou.height_ft_value, aboutYou.height_in_value)
+        : (() => {
+            const n = parseFloat(aboutYou.height_cm_value);
+            return Number.isFinite(n) ? n : null;
+          })();
 
-    const heightCm = !Number.isFinite(heightNum)
-      ? undefined
-      : aboutYou.height_unit === "ft"
-        ? Math.round(heightNum * 30.48 * 10) / 10 // 5.9 ft → 179.8 cm
-        : heightNum;
+    const weightNum = parseFloat(aboutYou.weight_value);
     const weightKg = !Number.isFinite(weightNum)
-      ? undefined
+      ? null
       : aboutYou.weight_unit === "lbs"
         ? Math.round((weightNum / 2.20462) * 100) / 100
         : weightNum;
@@ -123,8 +161,8 @@ export function OnboardingWizard({ defaultTimezone, defaultWeightUnit, defaultHe
     if (aboutYou.full_name.trim()) payload.full_name = aboutYou.full_name.trim();
     if (aboutYou.date_of_birth) payload.date_of_birth = aboutYou.date_of_birth;
     if (aboutYou.sex_at_birth) payload.sex_at_birth = aboutYou.sex_at_birth as SexAtBirth;
-    if (heightCm !== undefined) payload.height_cm = heightCm;
-    if (weightKg !== undefined) payload.current_weight_kg = weightKg;
+    if (heightCm != null) payload.height_cm = heightCm;
+    if (weightKg != null) payload.current_weight_kg = weightKg;
     if (aboutYou.activity_level) {
       payload.activity_level = aboutYou.activity_level as ActivityLevel;
     }
@@ -140,6 +178,10 @@ export function OnboardingWizard({ defaultTimezone, defaultWeightUnit, defaultHe
 
     payload.week_starts_on = defaults.week_starts_on;
     payload.timezone = defaults.timezone;
+    // Always send notifications_enabled so the user's explicit "off" choice
+    // overrides any server-side default. Earlier the field was collected but
+    // never reached the server because buildPayload omitted it.
+    payload.notifications_enabled = defaults.notifications_enabled;
 
     if (intents.length > 0) payload.primary_intents = intents;
 
@@ -165,10 +207,12 @@ export function OnboardingWizard({ defaultTimezone, defaultWeightUnit, defaultHe
         }
       }
 
-      // The settings query is cached; partial settings update means the
-      // dashboard banner needs the new onboarded_at value. Query refetches
-      // on focus so navigation alone will pick it up; if not, the banner
-      // logic also defensively re-checks.
+      // The dashboard banner reads from the cached useSettings query. Without
+      // an explicit invalidation the cache still has onboarded_at = null
+      // (staleTime = 5 min, refetchOnWindowFocus only fires on focus changes,
+      // not in-app navigation), so the banner would linger after we navigate.
+      // Invalidating forces the query to refetch on next mount.
+      await queryClient.invalidateQueries({ queryKey: SETTINGS_KEY });
       router.replace(ROUTES.DASHBOARD);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save. Please try again.");
@@ -195,11 +239,13 @@ export function OnboardingWizard({ defaultTimezone, defaultWeightUnit, defaultHe
             context={{
               sex: (aboutYou.sex_at_birth || null) as SexAtBirth | null,
               dob: aboutYou.date_of_birth || null,
-              height_cm: (() => {
-                const n = parseFloat(aboutYou.height_value);
-                if (!Number.isFinite(n)) return null;
-                return aboutYou.height_unit === "ft" ? n * 30.48 : n;
-              })(),
+              height_cm:
+                aboutYou.height_unit === "ft"
+                  ? ftInToCm(aboutYou.height_ft_value, aboutYou.height_in_value)
+                  : (() => {
+                      const n = parseFloat(aboutYou.height_cm_value);
+                      return Number.isFinite(n) ? n : null;
+                    })(),
               weight_kg: (() => {
                 const n = parseFloat(aboutYou.weight_value);
                 if (!Number.isFinite(n)) return null;
@@ -218,7 +264,7 @@ export function OnboardingWizard({ defaultTimezone, defaultWeightUnit, defaultHe
     <div className="flex flex-1 flex-col gap-8">
       <div className="flex flex-col gap-3">
         <StepIndicator
-          current={step}
+          current={safeStep}
           total={stepDefs.length}
           labels={stepDefs.map((s) => s.label)}
         />
@@ -244,8 +290,8 @@ export function OnboardingWizard({ defaultTimezone, defaultWeightUnit, defaultHe
       <footer className="flex items-center justify-between gap-3">
         <Button
           variant="ghost"
-          onClick={() => setStep((s) => Math.max(0, s - 1))}
-          disabled={step === 0 || submitting}
+          onClick={goBack}
+          disabled={safeStep === 0 || submitting}
           className="flex items-center gap-1.5"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -267,11 +313,7 @@ export function OnboardingWizard({ defaultTimezone, defaultWeightUnit, defaultHe
               Finish
             </Button>
           ) : (
-            <Button
-              onClick={() => setStep((s) => s + 1)}
-              disabled={submitting}
-              className="flex items-center gap-1.5"
-            >
+            <Button onClick={goNext} disabled={submitting} className="flex items-center gap-1.5">
               Continue
               <ArrowRight className="h-4 w-4" />
             </Button>
