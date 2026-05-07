@@ -1,13 +1,19 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import bundleAnalyzer from "@next/bundle-analyzer";
 
 // ─── Bundle analysis ──────────────────────────────────────────────────────────
 // Run: ANALYZE=true npm run build
 // Opens an interactive treemap showing what is in each bundle.
+//
+// We import @next/bundle-analyzer eagerly rather than via top-level
+// `await import(...)` — Next.js 16's TS config loader compiles this file
+// to CommonJS, and CJS can't `require()` an ESM module that contains TLA
+// (it errors with ERR_REQUIRE_ASYNC_MODULE, breaking `npm run build`).
+// Eager importing the wrapper factory is free: it returns a function, no
+// analysis runs until ANALYZE is set and the wrapper is actually invoked.
 const withBundleAnalyzer =
-  process.env.ANALYZE === "true"
-    ? (await import("@next/bundle-analyzer")).default({ enabled: true })
-    : (c: NextConfig) => c;
+  process.env.ANALYZE === "true" ? bundleAnalyzer({ enabled: true }) : (c: NextConfig) => c;
 
 // ─── Content Security Policy ──────────────────────────────────────────────────
 // Assembled as an array so individual directives are easy to read and audit.
