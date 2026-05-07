@@ -22,6 +22,7 @@ export const ROUTES = {
   WATER: "/dashboard/water",
   WEIGHT: "/dashboard/weight",
   GOALS: "/dashboard/goals",
+  PHASES: "/dashboard/phases",
   ANALYTICS: "/dashboard/analytics",
   SETTINGS: "/dashboard/settings",
 

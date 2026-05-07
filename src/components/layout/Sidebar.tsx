@@ -14,6 +14,7 @@ import {
   Settings,
   Activity,
   ListChecks,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { ROUTES, APP_NAME } from "@/constants";
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: ROUTES.WATER, label: "Water", icon: Droplets },
   { href: ROUTES.WEIGHT, label: "Weight", icon: Scale },
   { href: ROUTES.GOALS, label: "Goals", icon: Target },
+  { href: ROUTES.PHASES, label: "Phases", icon: Calendar },
   { href: ROUTES.ANALYTICS, label: "Analytics", icon: BarChart2 },
 ] as const;
 
