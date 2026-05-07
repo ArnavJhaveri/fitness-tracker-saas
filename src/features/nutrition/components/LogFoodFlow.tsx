@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils/cn";
 import { localDateStr } from "@/lib/utils/date";
+import { useDebouncedValue } from "@/lib/utils/useDebouncedValue";
+import { MEAL_TYPES, getMealTypeMeta } from "@/lib/registry/meal-types";
 import { useFoodSearch } from "../hooks/useFoodSearch";
 import { useAddMealItem, useCreateMeal, useMeals, useRecentFoods } from "../hooks/useNutrition";
 import type { FoodItem, Meal, MealType } from "@/types/database";
@@ -32,12 +34,10 @@ interface Props {
   onClose: () => void;
 }
 
-const MEAL_TYPE_OPTIONS: { value: Exclude<MealType, "other">; label: string; emoji: string }[] = [
-  { value: "breakfast", label: "Breakfast", emoji: "🌅" },
-  { value: "lunch", label: "Lunch", emoji: "☀️" },
-  { value: "dinner", label: "Dinner", emoji: "🌙" },
-  { value: "snack", label: "Snack", emoji: "🍎" },
-];
+// Meal-type chips drawn from the shared registry. We exclude "other" — the
+// chip row is for the four primary windows; a meal logged as "other" comes
+// from the import script or a future picker.
+const MEAL_TYPE_OPTIONS = MEAL_TYPES.filter((m) => m.type !== "other");
 
 /**
  * Pick the most likely meal type based on the user's local clock.
@@ -60,7 +60,11 @@ export function LogFoodFlow({ onClose }: Props) {
   const [grams, setGrams] = useState("100");
   const [err, setErr] = useState<string | null>(null);
 
-  const { data: searchResults, isFetching } = useFoodSearch(query);
+  // Debounce the search query so each keystroke doesn't fire a new request.
+  // Without this, typing "chicken" would queue 7 in-flight queries — wasted
+  // bandwidth + a race where late responses overwrite earlier ones.
+  const debouncedQuery = useDebouncedValue(query, 250);
+  const { data: searchResults, isFetching } = useFoodSearch(debouncedQuery);
   const { data: recent } = useRecentFoods();
   const { data: todaysMeals = [] } = useMeals();
 
@@ -108,7 +112,9 @@ export function LogFoodFlow({ onClose }: Props) {
           name: null,
           // Use a sensible mid-meal-window timestamp so the row sorts under
           // today's date in any reasonable timezone.
-          logged_at: new Date(`${localDateStr()}T${mealHour(mealType)}:00:00`).toISOString(),
+          logged_at: new Date(
+            `${localDateStr()}T${String(getMealTypeMeta(mealType).defaultHour).padStart(2, "0")}:00:00`,
+          ).toISOString(),
         });
         mealId = created.id;
       } catch (e) {
@@ -136,15 +142,15 @@ export function LogFoodFlow({ onClose }: Props) {
     <div className="flex flex-col gap-4">
       {/* Meal type chips */}
       <div role="radiogroup" aria-label="Meal type" className="flex flex-wrap gap-1.5">
-        {MEAL_TYPE_OPTIONS.map(({ value, label, emoji }) => {
-          const selected = mealType === value;
+        {MEAL_TYPE_OPTIONS.map((opt) => {
+          const selected = mealType === opt.type;
           return (
             <button
-              key={value}
+              key={opt.type}
               type="button"
               role="radio"
               aria-checked={selected}
-              onClick={() => setMealType(value)}
+              onClick={() => setMealType(opt.type)}
               className={cn(
                 "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
                 selected
@@ -152,7 +158,7 @@ export function LogFoodFlow({ onClose }: Props) {
                   : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300",
               )}
             >
-              <span aria-hidden="true">{emoji}</span> {label}
+              <span aria-hidden="true">{opt.emoji}</span> {opt.label}
             </button>
           );
         })}
@@ -194,7 +200,12 @@ export function LogFoodFlow({ onClose }: Props) {
             />
           </div>
 
-          {query.length >= 2 && (
+          {/* Show the result panel as soon as the user has typed enough,
+              so the skeleton/spinner appears immediately (rather than
+              blank for the 250ms debounce window). The `enabled` flag on
+              useFoodSearch still gates the actual fetch on the debounced
+              value reaching length >= 2. */}
+          {debouncedQuery.length >= 2 && (
             <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
               {isFetching && (
                 <div className="p-3">
@@ -334,7 +345,10 @@ export function LogFoodFlow({ onClose }: Props) {
       {/* Footer */}
       <div className="flex items-center justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onClose} disabled={isPending}>
-          Done
+          {/* "Cancel" rather than "Done" — when the user clicks "Log to lunch"
+              the panel stays open for sequential logging; this footer button
+              is the explicit close, not a confirm. */}
+          Cancel
         </Button>
         {picked && (
           <Button
@@ -344,7 +358,7 @@ export function LogFoodFlow({ onClose }: Props) {
             className="flex items-center gap-1.5"
           >
             <Plus className="h-4 w-4" />
-            Log to {MEAL_TYPE_OPTIONS.find((m) => m.value === mealType)?.label.toLowerCase()}
+            Log to {getMealTypeMeta(mealType).label.toLowerCase()}
           </Button>
         )}
       </div>
@@ -365,12 +379,4 @@ function PreviewStat({ label, value }: { label: string; value: number | string }
       </span>
     </div>
   );
-}
-
-/** HH timestamp for the meal-type's typical window. Mirrors the import script. */
-function mealHour(t: MealType): string {
-  if (t === "breakfast") return "08";
-  if (t === "lunch") return "13";
-  if (t === "dinner") return "19";
-  return "16"; // snack / other
 }

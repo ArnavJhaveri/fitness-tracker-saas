@@ -15,14 +15,22 @@ export async function GET() {
 
   try {
     const supabase = await createClient();
-    // Lightweight probe — confirm DB connectivity without reading any user data.
-    // `head: true` sends a HEAD request (COUNT query, no rows returned);
-    // `limit(0)` ensures we never fetch actual data even if head is ignored.
-    const { error } = await supabase.from("profiles").select("id", { head: true }).limit(0);
+    // Probe the auth service rather than an RLS-protected table.
+    //
+    // Previously this route did a HEAD on `profiles`. The endpoint is
+    // anonymous (no session cookie required to hit it), and `profiles`'
+    // RLS policy requires `auth.uid() = id` for SELECT. Result: an
+    // unauthenticated probe returned 0 rows + error=null = "looks healthy"
+    // even when the policy was misconfigured or the table was missing.
+    //
+    // `auth.getSession()` is the cheapest non-RLS-protected probe — it
+    // exercises the Supabase auth API gateway end-to-end. A real DB
+    // outage surfaces as an error here.
+    const { error } = await supabase.auth.getSession();
 
     if (error) {
       // Log internally — never expose raw DB error messages to callers
-      console.error("[health] DB probe failed:", error.message);
+      console.error("[health] auth probe failed:", error.message);
       return NextResponse.json({ status: "degraded", database: "unreachable" }, { status: 503 });
     }
 

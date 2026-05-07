@@ -1,8 +1,15 @@
 /**
- * Auto-generated database types should come from `supabase gen types typescript`.
- * These are the hand-written base types that seed the initial schema.
- * Run: npx supabase gen types typescript --project-id <id> > src/types/database.generated.ts
- * and then re-export from here.
+ * Hand-maintained TypeScript shape of the Supabase schema.
+ *
+ * Mirrors migrations 001 / 002 / 003. To regenerate from the live database
+ * (recommended after any future migration):
+ *   npx supabase gen types typescript --project-id <id> > src/types/database.ts
+ *
+ * The Supabase clients in src/lib/supabase/{client,server}.ts deliberately
+ * don't pass the `<Database>` generic — see the comments there for why
+ * (the hand-written shape doesn't compose with supabase-js's SELECT-string
+ * narrowing). Run the generator above to enable strict typing across the
+ * data layer.
  */
 
 // ─── Shared primitives ───────────────────────────────────────────────────────
@@ -23,9 +30,9 @@ export interface Profile {
   height_cm: number | null;
   date_of_birth: ISODate | null;
   timezone: string;
-  /** Phase 3: optional, used only for BMR/TDEE calculations */
+  /** Optional — used only for BMR/TDEE calculations */
   sex_at_birth: SexAtBirth | null;
-  /** Phase 3: denormalised cache of latest weight_entries row */
+  /** Denormalised cache of the latest weight_entries row */
   current_weight_kg: number | null;
   created_at: ISOTimestamp;
   updated_at: ISOTimestamp;
@@ -74,7 +81,7 @@ export interface Exercise {
   instructions: string | null;
   is_custom: boolean;
   created_by: UUID | null; // null = system exercise
-  /** Phase 3: soft-delete timestamp; null means active */
+  /** Soft-delete timestamp; null means active */
   archived_at: ISOTimestamp | null;
   created_at: ISOTimestamp;
 }
@@ -228,7 +235,7 @@ export interface Goal {
   unit: string | null;
   target_date: ISODate | null;
   status: GoalStatus;
-  /** Phase 3: optional link to the phase that owns this goal */
+  /** Optional link to the phase that owns this goal */
   phase_id: UUID | null;
   created_at: ISOTimestamp;
   updated_at: ISOTimestamp;
@@ -260,26 +267,25 @@ export interface UserSettings {
   water_unit: "ml" | "oz";
   daily_calorie_target: number | null;
   daily_protein_target_g: number | null;
-  /** Phase 3 */
   daily_carbs_target_g: number | null;
   daily_fat_target_g: number | null;
   daily_sugar_target_g: number | null;
   daily_water_target_ml: number;
   sleep_target_minutes: number;
-  /** Phase 3 */
   weekly_workout_hours_target: number | null;
   default_rest_seconds: number | null;
   theme: "light" | "dark" | "system";
   week_starts_on: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   timezone: string;
   notifications_enabled: boolean;
-  /** Phase 3: onboarding state — null means show banner / wizard */
+  /** Onboarding gate — null means the dashboard banner / wizard is shown */
   onboarded_at: ISOTimestamp | null;
   activity_level: ActivityLevel | null;
   dietary_pattern: string | null;
   excluded_foods: string[] | null;
   primary_intents: PrimaryIntent[] | null;
-  /** Reserved for v2 adaptive-targets feature; not yet read from */
+  /** Opt-in for the future MacroFactor-style nightly target recompute.
+   *  Schema-only for now — no read path yet. */
   adaptive_targets: boolean;
   created_at: ISOTimestamp;
   updated_at: ISOTimestamp;

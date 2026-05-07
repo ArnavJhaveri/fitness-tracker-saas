@@ -5,7 +5,11 @@ export { useAnalytics, useTodaySummary, useThirtyDaySummary } from "./hooks/useA
 export { calcWorkoutStreak, calcWaterStreak, calcLongestWorkoutStreak } from "./utils/streaks";
 export {
   workoutAdherence,
-  calorieAdherence, // reserved — wired up once calorie target setting is surfaced in the UI
+  // `calorieAdherence` is exported from "./utils/adherence" but not wired
+  // into a UI panel yet. The analytics page already pulls calorie targets
+  // from useResolvedTargets — adding a calorie-adherence tile is a one-line
+  // change when product is ready for it.
+  calorieAdherence,
   waterAdherence,
   sleepAdherence,
   overallScore,

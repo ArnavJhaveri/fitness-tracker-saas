@@ -124,6 +124,13 @@ describe("paginationSchema", () => {
     const result = paginationSchema.safeParse({ page: 0 });
     expect(result.success).toBe(false);
   });
+
+  // Defends against `?page=999999999` — Postgres OFFSET would otherwise
+  // do a full-table-skip walk for no possible result.
+  it("rejects page > 10_000", () => {
+    expect(paginationSchema.safeParse({ page: 10_001 }).success).toBe(false);
+    expect(paginationSchema.safeParse({ page: 10_000 }).success).toBe(true);
+  });
 });
 
 // ─── dateRangeSchema ──────────────────────────────────────────────────────────
@@ -141,5 +148,15 @@ describe("dateRangeSchema", () => {
   it("rejects invalid date format", () => {
     const result = dateRangeSchema.safeParse({ from: "01/01/2025" });
     expect(result.success).toBe(false);
+  });
+
+  // Cross-field invariant: callers don't have to defensively swap from/to.
+  it("rejects from > to", () => {
+    const result = dateRangeSchema.safeParse({ from: "2025-12-31", to: "2025-01-01" });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts from === to (single-day range)", () => {
+    expect(dateRangeSchema.safeParse({ from: "2025-06-15", to: "2025-06-15" }).success).toBe(true);
   });
 });

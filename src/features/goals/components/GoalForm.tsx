@@ -5,20 +5,13 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import { GOAL_TYPES } from "@/lib/registry/goal-types";
 import { useCreateGoal } from "../hooks/useGoals";
 
-const TYPE_OPTIONS = [
-  { value: "weight_loss", label: "Weight loss" },
-  { value: "weight_gain", label: "Weight gain" },
-  { value: "muscle_gain", label: "Muscle gain" },
-  { value: "improve_endurance", label: "Improve endurance" },
-  { value: "improve_strength", label: "Improve strength" },
-  { value: "calorie_target", label: "Calorie target" },
-  { value: "water_target", label: "Water target" },
-  { value: "sleep_target", label: "Sleep target" },
-  { value: "workout_frequency", label: "Workout frequency" },
-  { value: "custom", label: "Custom" },
-];
+// Single source of truth for goal-type options is the registry. Adding a
+// new type to the app is a code-only change there, and this dropdown
+// inherits the list automatically.
+const TYPE_OPTIONS = GOAL_TYPES.map((g) => ({ value: g.type, label: g.label }));
 
 interface Props {
   onSuccess?: () => void;

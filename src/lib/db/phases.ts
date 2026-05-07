@@ -136,14 +136,22 @@ export async function endPhase(
     endDate = localDateStrInTz(tz);
   }
 
+  // Only `active` phases can be ended via this path. Without this guard,
+  // ending a `planned` phase (or one that's already 'ended'/'superseded')
+  // silently moves it to 'ended' with today's date — corrupts history and
+  // creates a "phase that ended without ever starting" record.
   const { data, error } = await supabase
     .from("phases")
     .update({ status: "ended", actual_end_date: endDate })
     .eq("id", id)
     .eq("user_id", userId)
+    .eq("status", "active")
     .select()
     .single();
-  if (error || !data) throw new NotFoundError("Phase");
+  if (error || !data) {
+    // Ambiguous — could be wrong owner OR not active. Surface a clear message.
+    throw new NotFoundError("Active phase");
+  }
   return data as Phase;
 }
 
@@ -186,6 +194,22 @@ export async function pivotPhase(
   // we'd compute actual_end_date < start_date and trip phases_actual_end_sane.
   if (newPhaseInput.start_date <= old.start_date) {
     throw new ValidationError("The new phase must start after the current phase started.");
+  }
+  // The new phase must also start TODAY OR LATER. Pivoting to a past date
+  // would silently rewrite the targets that historical days resolve against,
+  // breaking the "history is sacred" invariant from migration 003. The user's
+  // local timezone is the right reference — UTC's "today" can be off by a day.
+  const { data: tzRow } = await supabase
+    .from("user_settings")
+    .select("timezone")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const tz = (tzRow as { timezone?: string } | null)?.timezone ?? "UTC";
+  const today = localDateStrInTz(tz);
+  if (newPhaseInput.start_date < today) {
+    throw new ValidationError(
+      "The new phase's start date can't be in the past — phases never rewrite history.",
+    );
   }
 
   // dayBefore() does pure UTC calendar arithmetic — DST-safe and matches

@@ -26,6 +26,7 @@ import {
   latestWeight,
 } from "@/features/analytics/utils/trends";
 import { useSettings } from "@/features/settings/hooks/useSettings";
+import { useActivePhase } from "@/features/phases/hooks/usePhases";
 import type { DailySummary } from "@/types/database";
 
 // ─── Trend direction icon ──────────────────────────────────────────────────────
@@ -75,11 +76,22 @@ function AdherenceCard({
 export default function AnalyticsPage() {
   const { data: summaries = [], isLoading } = useThirtyDaySummary();
   const { data: settings } = useSettings();
+  const { data: activePhase } = useActivePhase();
 
-  // Resolve targets from user settings with sensible fallbacks
-  const waterMl = settings?.daily_water_target_ml ?? 2000;
+  // Resolve targets — phase overrides settings per field. We keep this
+  // resolution inline (rather than calling useResolvedTargets) because the
+  // analytics page reads each field with a different fallback default, and
+  // the latest-active-phase view is correct for "the past 30 days" only
+  // when the phase covers them. For per-day historical accuracy, the
+  // resolveDailyTargets server helper is the right tool — the page
+  // currently uses one snapshot for simplicity.
+  const waterMl = activePhase?.daily_water_target_ml ?? settings?.daily_water_target_ml ?? 2000;
   const sleepMinutes = settings?.sleep_target_minutes ?? 480;
-  const workoutsPerWeek = 4; // not yet a user setting — kept as a constant
+  // weekly_workout_target on phases is a session count; user_settings has
+  // weekly_workout_hours_target (a duration). The adherence calc takes a
+  // session count, so we use the phase column when present and fall back
+  // to a sensible default.
+  const workoutsPerWeek = activePhase?.weekly_workout_target ?? 4;
 
   // ── Streaks ──
   const workoutStreak = summaries.length ? calcWorkoutStreak(summaries) : 0;

@@ -7,9 +7,10 @@
  * scope because cookies() is request-scoped and caching would bleed sessions
  * across requests.
  *
- * TODO: Once Supabase is set up, add the Database generic:
- *   import type { Database } from "@/types/database.generated";
- *   createServerClient<Database>(...)
+ * NOTE on typing: see the long-form note in client.ts. We deliberately don't
+ * pass the `<Database>` generic — the hand-written types in
+ * src/types/database.ts don't compose with supabase-js's SELECT-string
+ * narrowing. Run `supabase gen types` to enable strict typing.
  */
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";

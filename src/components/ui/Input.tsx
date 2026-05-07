@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils/cn";
-import { forwardRef } from "react";
+import { forwardRef, useId } from "react";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -11,10 +11,16 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
  * Accessible input with optional label, error message, and hint text.
  * Error state is signalled via aria-invalid and aria-describedby so screen
  * readers announce the error when focus enters the field.
+ *
+ * Field id strategy: explicit `id` prop wins; otherwise React's useId()
+ * generates a stable, unique id per instance. Earlier this slugified the
+ * label, which collided when two inputs on the same page shared a label
+ * (e.g. two "Notes" fields → both labels pointed at the first input).
  */
 const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, hint, id, ...props }, ref) => {
-    const fieldId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
+    const generatedId = useId();
+    const fieldId = id ?? generatedId;
     const errorId = `${fieldId}-error`;
     const hintId = `${fieldId}-hint`;
 

@@ -2,28 +2,13 @@
 
 import { useState } from "react";
 import { Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { getMealTypeMeta } from "@/lib/registry/meal-types";
 import type { Meal, MealItem, FoodItem } from "@/types/database";
 import { useDeleteMeal, useDeleteMealItem } from "../hooks/useNutrition";
 import { calcMealMacros } from "../utils/macros";
 
 type FullMealItem = MealItem & { food_items?: FoodItem };
 type FullMeal = Meal & { meal_items?: FullMealItem[] };
-
-const MEAL_TYPE_LABEL: Record<string, string> = {
-  breakfast: "Breakfast",
-  lunch: "Lunch",
-  dinner: "Dinner",
-  snack: "Snack",
-  other: "Other",
-};
-
-const MEAL_TYPE_EMOJI: Record<string, string> = {
-  breakfast: "🌅",
-  lunch: "☀️",
-  dinner: "🌙",
-  snack: "🍎",
-  other: "🍽️",
-};
 
 interface Props {
   meal: FullMeal;
@@ -56,15 +41,16 @@ export function MealCard({ meal }: Props) {
     });
   }
 
-  const emoji = MEAL_TYPE_EMOJI[meal.meal_type] ?? "🍽️";
-  const label = meal.name ?? MEAL_TYPE_LABEL[meal.meal_type] ?? meal.meal_type;
+  // Single source of truth for emoji + label is the registry.
+  const meta = getMealTypeMeta(meal.meal_type);
+  const label = meal.name ?? meta.label;
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
       {/* Header */}
       <div className="flex items-start gap-3 px-5 py-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-lg dark:bg-orange-950/30">
-          <span aria-hidden="true">{emoji}</span>
+          <span aria-hidden="true">{meta.emoji}</span>
         </div>
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-gray-900 dark:text-gray-100">{label}</p>

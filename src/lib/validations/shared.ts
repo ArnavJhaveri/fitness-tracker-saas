@@ -4,17 +4,33 @@
 import { z } from "zod";
 import { ValidationError } from "@/lib/errors";
 
-/** Pagination query params with safe defaults */
+/**
+ * Pagination query params with safe defaults.
+ *
+ * `page` has a max bound of 10_000 to defend against `?page=999999999`
+ * making Postgres compute an enormous OFFSET. With per_page=100 that's
+ * still 1M rows to skip, but no realistic UI ever needs that — the cap
+ * trades mythological scrolling for predictable query cost.
+ */
 export const paginationSchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
   per_page: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-/** ISO date-only strings e.g. "2025-01-15" */
-export const dateRangeSchema = z.object({
-  from: z.string().date().optional(),
-  to: z.string().date().optional(),
-});
+/**
+ * ISO date-only strings e.g. "2025-01-15".
+ * Cross-field check rejects `from > to` — handlers using this don't have
+ * to defensively swap. Both fields are optional, so empty range is valid.
+ */
+export const dateRangeSchema = z
+  .object({
+    from: z.string().date().optional(),
+    to: z.string().date().optional(),
+  })
+  .refine((d) => !d.from || !d.to || d.from <= d.to, {
+    message: "'from' must be on or before 'to'",
+    path: ["from"],
+  });
 
 /**
  * Parse and validate a request body using a Zod schema.

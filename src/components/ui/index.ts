@@ -8,7 +8,6 @@ export type { BadgeProps } from "./Badge";
 export { Spinner } from "./Spinner";
 export { Skeleton, CardSkeleton } from "./Skeleton";
 export { EmptyState } from "./EmptyState";
-export { Modal } from "./Modal";
 export { ProgressBar } from "./ProgressBar";
 export { Select } from "./Select";
 export { Textarea } from "./Textarea";

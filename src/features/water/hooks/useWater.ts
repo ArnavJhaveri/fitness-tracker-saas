@@ -5,6 +5,12 @@ import { waterService } from "@/services/water.service";
 import { localDateStr } from "@/lib/utils/date";
 import type { WaterEntry } from "@/types/database";
 
+// Module-level monotonic counter used to mint unique optimistic-row ids.
+// Reset is fine on hot-reload — each id only needs to be unique for the
+// duration of a single mutation flight, and the IDs are replaced with real
+// UUIDs once the server response lands via cache invalidation.
+let optimisticCounter = 0;
+
 /** Local midnight ISO string for start-of-day filtering. */
 function startOfLocalDay(): string {
   const d = new Date();
@@ -55,10 +61,16 @@ export function useLogWater() {
       const key = [...WATER_KEY, today()]; // capture key at mutation time
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<WaterEntry[]>(key);
+      // Optimistic id needs to be unique even when two clicks land in the
+      // same millisecond — `Date.now()` alone collapses on rapid taps and
+      // React's keyed list then merges the rows, leaving a stale optimistic
+      // entry visible after the real rows commit. A monotonic counter keeps
+      // each insert distinct.
+      const optimisticId = `optimistic-${++optimisticCounter}`;
       qc.setQueryData<WaterEntry[]>(key, (old = []) => [
         ...old,
         {
-          id: `optimistic-${Date.now()}`,
+          id: optimisticId,
           user_id: "",
           amount_ml,
           logged_at: new Date().toISOString(),

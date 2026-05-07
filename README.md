@@ -1,306 +1,246 @@
 # FitTrack SaaS
 
-A production-grade multi-user fitness tracking application built with Next.js 16, TypeScript, Supabase, and Tailwind CSS.
-
-This is **Phase 1** — the foundational architecture. The goal is a scaffold that a team of engineers can confidently build on, not a collection of clever shortcuts.
+A multi-user fitness tracking app built on Next.js 16, Supabase, and TypeScript.
+Tracks workouts, nutrition, sleep, water, weight, and goals — and supports
+opt-in **phases** (cuts, bulks, strength blocks, etc.) that override your
+daily targets without rewriting historical analytics.
 
 ---
 
 ## Quick start
 
 ```bash
-# 1. Clone and install
 git clone <repo-url> fitness-tracker-saas
 cd fitness-tracker-saas
 npm install
 
-# 2. Configure environment
+# Configure environment
 cp .env.example .env.local
 # Edit .env.local with your Supabase credentials
 
-# 3. Apply database schema
-# Option A — Supabase CLI
+# Apply database schema (three migrations, in order)
 npx supabase db push
+# OR paste supabase/migrations/001_*.sql, 002_*.sql, 003_*.sql into the
+# Supabase SQL editor
 
-# Option B — paste supabase/migrations/001_initial_schema.sql
-# into the Supabase SQL editor
-
-# 4. Start dev server
+# Start dev server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000), sign up, and you'll be
+guided through onboarding — or skip it and start logging immediately
+(companion mode).
 
 ---
 
 ## Tech stack
 
-| Layer      | Technology                       | Why                                                        |
-| ---------- | -------------------------------- | ---------------------------------------------------------- |
-| Framework  | Next.js 16 (App Router)          | Server Components, streaming, typed routes                 |
-| Language   | TypeScript (strict)              | Catch entire classes of bugs at compile time               |
-| Styling    | Tailwind CSS v4                  | Utility-first, zero runtime, excellent purge               |
-| Database   | PostgreSQL via Supabase          | Relational integrity + Row Level Security                  |
-| Auth       | Supabase Auth                    | JWT + cookie-based, handles refresh automatically          |
-| State      | TanStack Query v5                | Server-state cache, background refetch, optimistic updates |
-| Validation | Zod v4                           | Runtime type safety at system boundaries                   |
-| Linting    | ESLint (flat config) + Prettier  | Consistent code style, enforced at commit time             |
-| Hooks      | Husky + lint-staged + commitlint | Prevent bad commits from entering the repo                 |
+| Layer      | Technology                       | Why                                                       |
+| ---------- | -------------------------------- | --------------------------------------------------------- |
+| Framework  | Next.js 16 (App Router)          | Server Components, streaming, typed routes                |
+| Language   | TypeScript (strict)              | Catch entire classes of bugs at compile time              |
+| Styling    | Tailwind CSS v4                  | Utility-first, zero runtime, excellent purge              |
+| Database   | PostgreSQL via Supabase          | Relational integrity + Row Level Security                 |
+| Auth       | Supabase Auth                    | JWT + cookie-based, handles refresh automatically         |
+| State      | TanStack Query v5                | Server-state cache, optimistic updates, focus refetch     |
+| Validation | Zod v4                           | Runtime type safety at every API boundary                 |
+| Charts     | Recharts                         | Lazy-loaded so the bundle stays small for non-chart pages |
+| Errors     | Sentry (`@sentry/nextjs`)        | Source maps, replay, edge + server runtimes               |
+| Tests      | Vitest + Playwright              | Pure-logic units + auth-flow E2E                          |
+| Hooks      | Husky + lint-staged + commitlint | Pre-commit format/lint, pre-push credential-leak check    |
 
 ---
 
-## Folder structure
+## Folder layout
 
 ```
 src/
-├── app/                        # Next.js App Router
-│   ├── (auth)/                 # Route group — auth pages (no dashboard chrome)
-│   │   ├── login/
-│   │   ├── register/
-│   │   └── layout.tsx          # Centered card layout
-│   ├── (dashboard)/            # Route group — protected pages
-│   │   ├── dashboard/          # Overview page
-│   │   ├── workouts/
-│   │   ├── nutrition/
-│   │   ├── sleep/
-│   │   ├── water/
-│   │   ├── weight/
-│   │   ├── goals/
-│   │   ├── analytics/
-│   │   └── layout.tsx          # Sidebar + mobile nav, auth guard
-│   ├── api/                    # Route Handlers (server-side API)
-│   │   ├── health/route.ts     # Uptime probe
-│   │   └── workouts/route.ts   # Example: full CRUD pattern
-│   ├── globals.css
-│   └── layout.tsx              # Root layout — providers, metadata, PWA
+├── app/                            # Next.js App Router
+│   ├── (auth)/                     # Login / register / forgot-password / reset
+│   ├── (dashboard)/                # Authenticated app — workouts / nutrition /
+│   │                               #   sleep / water / weight / goals / phases /
+│   │                               #   exercises / analytics / settings
+│   ├── onboarding/                 # First-run wizard (skippable)
+│   ├── api/                        # Route handlers — every domain has its own
+│   │                               #   subfolder mirroring the dashboard pages
+│   ├── auth/callback/              # Supabase PKCE callback (proxy-bypassed)
+│   └── layout.tsx                  # Root layout — Auth + Query providers
 │
 ├── components/
-│   ├── ui/                     # Design system primitives
-│   │   ├── Button.tsx
-│   │   ├── Input.tsx
-│   │   ├── Card.tsx
-│   │   ├── Badge.tsx
-│   │   └── Spinner.tsx
-│   ├── layout/                 # Chrome: Sidebar, Header, MobileNav
-│   ├── forms/                  # (Phase 2) Form components per domain
-│   ├── charts/                 # (Phase 2) Chart components
-│   └── providers/              # React context providers
-│       ├── QueryProvider.tsx   # TanStack Query
-│       └── AuthProvider.tsx    # Supabase auth state
+│   ├── ui/                         # Generic UI primitives (Button, Card, …)
+│   ├── layout/                     # Sidebar, MobileNav, Header
+│   ├── dashboard/                  # Dashboard widgets + visibility rules
+│   └── providers/                  # Auth + Query providers
 │
-├── hooks/
-│   ├── useAuth.ts              # signIn / signUp / signOut / resetPassword
-│   └── useUser.ts              # profile fetch + update via React Query
+├── features/                       # Domain features — components, hooks, utils
+│   ├── analytics/                  # Streaks, adherence, trends, charts
+│   ├── exercises/                  # Custom exercise CRUD + form
+│   ├── goals/                      # Goal cards, form
+│   ├── nutrition/                  # Meal cards, food logger, macro summary
+│   ├── phases/                     # Phase progress card, form, hooks
+│   ├── settings/                   # Settings hooks
+│   ├── sleep/ water/ weight/       # Logging UIs
+│   └── workouts/                   # Session detail, set logger
 │
 ├── lib/
-│   ├── supabase/
-│   │   ├── client.ts           # Browser client (Client Components)
-│   │   ├── server.ts           # Server client (Server Components / Route Handlers)
-│   │   └── middleware.ts       # Middleware client (cookie refresh)
-│   ├── validations/            # Zod schemas, shared parse helpers
-│   ├── errors/                 # Typed error classes + handleRouteError()
-│   ├── logger/                 # Structured logger (JSON in prod, pretty in dev)
-│   ├── rate-limit/             # Sliding-window limiter + per-route configs
-│   └── utils/
-│       ├── cn.ts               # clsx + tailwind-merge
-│       └── format.ts           # Weight, volume, duration, calorie formatters
+│   ├── db/                         # Supabase repository layer (per domain)
+│   ├── errors/                     # Typed error classes + handleRouteError
+│   ├── logger/                     # Structured logger
+│   ├── monitoring/                 # Web Vitals reporter
+│   ├── rate-limit/                 # In-process / Upstash sliding window
+│   ├── registry/                   # Curated metadata (phase / goal / meal /
+│   │                               #   exercise-category types)
+│   ├── supabase/                   # Browser / server / middleware clients
+│   ├── targets/                    # resolveDailyTargets — phase + settings
+│   ├── utils/                      # date, format, cn, tdee, redirect, etc.
+│   └── validations/                # Zod schemas at every API boundary
 │
-├── types/
-│   ├── database.ts             # Hand-written DB shape (replace with generated)
-│   ├── api.ts                  # ApiSuccess / ApiError envelopes
-│   └── auth.ts                 # AuthState, AuthUser
-│
-├── constants/
-│   ├── routes.ts               # Single source of truth for all paths
-│   └── app.ts                  # APP_NAME, defaults, macro ratios
-│
-└── middleware.ts               # Edge: session refresh + auth redirects
+├── services/                       # Thin fetch() wrappers used by hooks
+├── types/                          # Hand-written DB types + API envelope
+├── constants/                      # ROUTES, APP_NAME, APP_URL
+├── proxy.ts                        # Edge proxy: session refresh + auth gate
+└── __tests__/                      # Vitest unit tests
 
-supabase/
-└── migrations/
-    └── 001_initial_schema.sql  # Full schema + RLS + triggers + seed exercises
+e2e/                                # Playwright auth + smoke tests
+scripts/                            # Operational tooling (sheet importer)
+supabase/migrations/                # 001 / 002 / 003 SQL migrations
+public/                             # PWA manifest
 ```
 
 ---
 
-## Architecture decisions and why each one matters
+## Architecture principles
 
-### 1. Next.js App Router with Server Components
+**Server-side auth, every time.** Every dashboard route checks `auth.getUser()`
+in a Server Component layout AND every API handler checks it again. The
+`src/proxy.ts` middleware is the third belt — it refreshes the session JWT
+and redirects unauthenticated users to `/login`.
 
-**Decision:** Use React Server Components by default; only opt into Client Components (`"use client"`) when interactivity or browser APIs are required.
+**Validation at every API boundary.** No route handler trusts request input.
+`src/lib/validations/*` defines Zod schemas; `parseRequestBody` and
+`parseSearchParams` throw a structured `ValidationError` on bad input that
+`handleRouteError` translates to a 400 with field-level details.
 
-**Why it matters:** Server Components run on the server and send zero JavaScript to the client. Dashboard pages that read and display data (the majority of fitness tracker screens) stay fast and lightweight. Only forms and real-time UI require client-side hydration. This splits naturally: `page.tsx` = Server Component, `*Form.tsx` = Client Component.
+**Repository pattern for DB access.** Routes are thin HTTP adapters;
+`src/lib/db/*.ts` owns the SQL. This keeps routes ~30 lines each and makes
+the SQL testable in isolation.
 
-**Future problem it prevents:** If everything were a Client Component, the initial JS bundle would grow linearly with features. Server Components keep the bundle flat.
+**Companion mode is the default.** A user with no active phase, no goals,
+and no targets gets a fully usable dashboard. Phases are an opt-in power
+feature that override targets on a per-field basis (see
+`src/lib/targets/resolveDailyTargets.ts`).
 
----
+**Phases never rewrite history.** When you pivot or end a phase, analytics
+for past days resolve against the phase that was active at the time. The
+`findPhaseForDate` SQL filter handles this; the `pivotPhase` DB layer
+enforces "new phase can't start in the past."
 
-### 2. Three separate Supabase clients
-
-**Decision:** `client.ts` (browser), `server.ts` (Server Components/Route Handlers), `middleware.ts` (Edge Middleware).
-
-**Why it matters:** Each context has different cookie access semantics. The browser client reads `document.cookie`. The server client reads from `next/headers` (request-scoped). The middleware client reads from `NextRequest` and writes to `NextResponse` to propagate refreshed tokens. Mixing these causes subtle auth bugs — sessions expire unexpectedly or token refresh doesn't propagate.
-
-**Future problem it prevents:** Avoids the "token works in client but not on server" bug class that plagues many Next.js + Supabase apps.
-
----
-
-### 3. Row Level Security on every table
-
-**Decision:** Every user-data table has RLS enabled with explicit policies. No table trusts the application layer to filter by `user_id`.
-
-**Why it matters:** If a bug in the API layer accidentally omits a `.eq("user_id", user.id)` filter, the database refuses the query. User A cannot ever read User B's data, regardless of application bugs. This is defense-in-depth.
-
-**Future problem it prevents:** Data leaks between users as the codebase grows and new developers write queries.
-
----
-
-### 4. Zod at every system boundary
-
-**Decision:** All request bodies and query params are parsed through Zod schemas before touching business logic.
-
-**Why it matters:** TypeScript types are erased at runtime. An API caller can send `{"weight_kg": "not-a-number"}` and TypeScript won't catch it. Zod rejects invalid input and returns structured field-level errors that map directly to form validation UI.
-
-**Future problem it prevents:** Prevents an entire class of runtime type errors and makes error messages user-friendly rather than "Internal Server Error".
+**Target resolution is layered.** Phase overrides → `user_settings` →
+companion-mode (no target). The pure `applyResolution` function is unit-
+tested; `resolveDailyTargets` adds the SQL layer that finds the right phase
+for a given date.
 
 ---
 
-### 5. Typed error classes + uniform API envelope
+## Database
 
-**Decision:** `AppError` subclasses (`UnauthorizedError`, `ValidationError`, etc.) + `handleRouteError()` in every catch block + `ApiSuccess<T>` / `ApiError` envelopes.
+Three migrations, applied in order:
 
-**Why it matters:** Without this, every Route Handler has different error shapes — some return `{ error: string }`, others return `{ message: string }`, others throw and return 500. Frontend code becomes a tangle of `if (error.error || error.message || ...)`. With a typed envelope, the client always knows the shape.
+| File                            | What it adds                                                                                                    |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `001_initial_schema.sql`        | profiles, exercises (system + custom), workouts, nutrition, sleep, water, weight, goals, RLS policies, triggers |
+| `002_phase2_additions.sql`      | user_settings, workout_templates, meal_templates, personal_records, `get_daily_summary` RPC                     |
+| `003_phases_and_onboarding.sql` | phases, onboarding fields on user_settings, custom-category support, soft-delete on exercises                   |
 
-**Future problem it prevents:** As the API grows to 20+ routes, consistent error handling prevents fragile frontend error handling code.
-
----
-
-### 6. Route groups for layout isolation
-
-**Decision:** `(auth)` group for public auth pages, `(dashboard)` group for protected pages.
-
-**Why it matters:** Each group gets its own `layout.tsx`. Auth pages need a centered-card layout with no sidebar. Dashboard pages need the sidebar + mobile nav. Without route groups, you'd need to detect the current route inside a single layout and conditionally render — fragile and hard to extend.
-
-**Future problem it prevents:** Adding a new section (e.g. "Admin panel") becomes: create `(admin)/layout.tsx` with its own chrome, done.
+RLS is on for every table; all multi-user safety is enforced by Postgres
+policies, not application code. Application-layer checks in `lib/db/*` are
+defence-in-depth so 404 responses are clean rather than RLS-deny errors.
 
 ---
 
-### 7. TanStack Query for server state
-
-**Decision:** Use React Query for all client-side data fetching — no `useEffect` + `useState` data fetching.
-
-**Why it matters:** React Query provides: automatic caching, background refetching, optimistic updates, request deduplication, and loading/error states for free. Manual `useEffect` fetching duplicates these capabilities poorly and adds subtle bugs (race conditions, stale closures, missing cleanup).
-
-**Future problem it prevents:** As the app grows, the cache prevents the same data from being fetched 5 times on the same screen.
-
----
-
-### 8. In-process rate limiter with upgrade path
-
-**Decision:** Built-in sliding-window rate limiter with per-route configs. The interface is identical to what you'd use with Upstash Redis.
-
-**Why it matters:** Free-tier Vercel deployments can still be abused. The in-process limiter stops obvious abuse. The `.env.example` includes Upstash credentials — swapping the implementation is a one-file change.
-
-**Future problem it prevents:** DDoS and credential-stuffing attacks on auth endpoints are common. Even a basic limiter blocks 99% of automated attacks.
-
----
-
-### 9. Mobile-first with safe-area support
-
-**Decision:** Bottom tab bar on mobile (`MobileNav`), sidebar on desktop. `pb-safe` / `pt-safe` CSS utilities use `env(safe-area-inset-*)`.
-
-**Why it matters:** iPhone notch and home indicator overlap the bottom tab bar without safe-area padding. The PWA `standalone` display mode removes the browser chrome, making this critical.
-
-**Future problem it prevents:** The #1 complaint for fitness PWAs is UI being cut off by the iPhone home bar.
-
----
-
-### 10. Commitlint + conventional commits
-
-**Decision:** Enforce `feat:`, `fix:`, `chore:` commit prefixes via Husky.
-
-**Why it matters:** Conventional commits enable automatic changelog generation, semantic version bumping, and make `git log` useful. With multiple developers, unstructured commit messages make release notes impossible.
-
-**Future problem it prevents:** "What changed in v2.3.1?" becomes answerable with one command.
-
----
-
-## Setup: Supabase project
-
-1. Create a project at [supabase.com](https://supabase.com)
-2. Go to **Settings → API** and copy:
-   - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
-   - Anon key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - Service role key → `SUPABASE_SERVICE_ROLE_KEY` (never expose this)
-3. Go to **SQL Editor** and paste `supabase/migrations/001_initial_schema.sql`
-4. Enable **Email** auth in **Authentication → Providers**
-
----
-
-## Deployment: Vercel (recommended)
+## Commands
 
 ```bash
-# Install Vercel CLI
-npm install -g vercel
+# Dev
+npm run dev                # next dev --turbopack
+npm run build              # production build
+npm run start              # serve production build
 
-# Deploy
-vercel
+# Quality
+npm run type-check         # tsc --noEmit
+npm run lint               # eslint
+npm run lint:fix           # eslint --fix
+npm run format             # prettier --write .
+npm run format:check       # prettier --check .
+npm run validate           # type-check + lint + format:check
 
-# Set environment variables
-vercel env add NEXT_PUBLIC_SUPABASE_URL
-vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY
-vercel env add NEXT_PUBLIC_APP_URL
+# Tests
+npm run test               # vitest run (unit)
+npm run test:watch         # vitest watch
+npm run test:coverage      # vitest run --coverage
+npm run test:e2e           # playwright (requires Supabase test project)
+
+# Operations
+npm run import:sheet -- --json /path/to/sheet.json --email you@example.com [--commit]
+npm run analyze            # bundle-size analyzer
+
+# PWA
+# manifest.json is in public/. Icons are intentionally not committed —
+# generate from your brand image and drop them into public/icons/.
 ```
-
-Set `NEXT_PUBLIC_APP_URL` to your Vercel deployment URL, then add it to Supabase's **Authentication → URL Configuration → Site URL**.
-
-## Deployment: Cloudflare Pages (alternative)
-
-```bash
-npm install -g wrangler
-wrangler pages deploy .vercel/output/static
-```
-
-Note: Cloudflare Pages requires the Edge Runtime. Add `export const runtime = "edge"` to Route Handlers that need it, and verify Supabase SSR cookie handling works in the Edge context.
 
 ---
 
-## Development workflow
+## Environment variables
 
-```bash
-npm run dev          # Start dev server (Turbopack)
-npm run type-check   # TypeScript check
-npm run lint         # ESLint
-npm run format       # Prettier write
-npm run validate     # type-check + lint + format:check (runs in CI)
-```
+See `.env.example` for the full list. Required for local dev:
 
-## Git workflow
+| Var                             | Purpose                                                       |
+| ------------------------------- | ------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase project URL                                          |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon public key — safe to expose, RLS protects data           |
+| `NEXT_PUBLIC_APP_URL`           | Public origin (used in OAuth redirects + Sentry release tags) |
 
-```
-main         — production, protected
-staging      — pre-production integration
-feat/*       — feature branches, PRs into staging
-fix/*        — bug fix branches
-chore/*      — tooling, dependencies
-```
+Required for production:
 
-Commit message format: `type(scope): description`
-Examples:
+| Var                             | Purpose                                                       |
+| ------------------------------- | ------------------------------------------------------------- |
+| `NEXT_PUBLIC_SENTRY_DSN`        | Error tracking + Web Vitals + Replay                          |
+| `SENTRY_AUTH_TOKEN`             | Source-map upload during build                                |
+| `SENTRY_ORG` / `SENTRY_PROJECT` | Sentry release tagging                                        |
+| `UPSTASH_REDIS_REST_URL`        | Distributed rate limiting (in-process Map fallback if absent) |
+| `UPSTASH_REDIS_REST_TOKEN`      |                                                               |
 
-- `feat(workouts): add set reordering`
-- `fix(auth): refresh token not propagating to server`
-- `chore(deps): upgrade supabase-js to 2.106`
+Required only for the import script (admin-only tool):
+
+| Var                         | Purpose                                                        |
+| --------------------------- | -------------------------------------------------------------- |
+| `SUPABASE_SERVICE_ROLE_KEY` | Bypasses RLS — never expose to client; used only by `scripts/` |
+
+E2E tests need their own Supabase test project (see `CONTRIBUTING.md`).
 
 ---
 
-## Phase roadmap
+## Importing existing data
 
-| Phase      | Focus                                              |
-| ---------- | -------------------------------------------------- |
-| ✅ Phase 1 | Architecture, infrastructure, auth, design system  |
-| Phase 2    | Migrate workout + nutrition tracking from monolith |
-| Phase 3    | Migrate sleep, water, weight, goals                |
-| Phase 4    | Analytics, charts, historical data views           |
-| Phase 5    | Offline support (Workbox), push notifications      |
-| Phase 6    | Social features, sharing, leaderboards             |
+If you're migrating from the legacy Google Sheets `fitnessTracker` blob, see
+`scripts/README.md`. Run `--dry-run` first; pass `--commit` to actually
+write rows.
+
+---
+
+## Contributing
+
+See `CONTRIBUTING.md` for the branch + commit conventions and the PR
+checklist. Short version:
+
+- `feat:` / `fix:` / `chore:` Conventional Commit subjects (lowercase)
+- Pre-commit hook runs eslint + prettier on staged files
+- Pre-push hook refuses pushes when the remote URL contains a credential
+- All changes ship behind PR review on `main`
+
+---
+
+## License
+
+Private project. No license granted.

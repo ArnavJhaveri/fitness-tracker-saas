@@ -391,11 +391,14 @@ async function insertSleep(
   const wake = new Date(date.getTime());
   wake.setUTCHours(7, 0, 0, 0);
   const start = new Date(wake.getTime() - hrs * 3_600_000);
+  // sleep_entries.duration_minutes is GENERATED ALWAYS in migration 001.
+  // Postgres rejects writes to such columns (errcode 428C9) — any row that
+  // includes the field would 500 the entire insert. Let the DB compute it
+  // from sleep_end - sleep_start.
   const row = {
     user_id: userId,
     sleep_start: start.toISOString(),
     sleep_end: wake.toISOString(),
-    duration_minutes: Math.round(hrs * 60),
     quality: clampQuality(dayObj.energy),
     notes: "Imported from sheet",
   };
@@ -452,13 +455,15 @@ async function insertWorkout(
   if (dayObj.energy != null) noteParts.push(`Energy: ${dayObj.energy}`);
   if (dayObj.customBurn != null) noteParts.push(`Burn: ${dayObj.customBurn} kcal`);
   if (dayObj.notes) noteParts.push(dayObj.notes);
+  // workout_sessions.duration_minutes is GENERATED ALWAYS — the DB derives
+  // it from started_at + ended_at. Including it in the insert payload makes
+  // Postgres reject the row with errcode 428C9.
   const row = {
     user_id: userId,
     name: dayObj.activity ?? "Workout",
     notes: noteParts.join(" · ") || "Imported from sheet",
     started_at: start,
     ended_at: end,
-    duration_minutes: Number.isFinite(dur) ? dur : null,
   };
   if (!commit) return;
   const { error } = await supabase.from("workout_sessions").insert(row);

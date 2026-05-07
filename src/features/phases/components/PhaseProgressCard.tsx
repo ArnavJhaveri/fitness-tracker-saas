@@ -59,17 +59,31 @@ export function PhaseProgressCard({ phase }: Props) {
   // ─── Time progress ────────────────────────────────────────────────────
   // Computed on the client side using calendar arithmetic. Both dates are
   // YYYY-MM-DD; treating them as UTC midnight gives stable diffs that don't
-  // jitter across DST boundaries.
-  const today = new Date();
-  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  // jitter across DST boundaries. parseUtcDate returns null on malformed
+  // input — we render a "started" line without a counter rather than fall
+  // back to wall-clock millis (which produced wildly wrong day counts).
   const startUtc = parseUtcDate(phase.start_date);
   const plannedUtc = phase.planned_end_date ? parseUtcDate(phase.planned_end_date) : null;
 
+  // "Today" should be the user's LOCAL calendar day, not UTC. A user in
+  // UTC+13 (NZ) at 1am local maps to "yesterday" UTC, so getUTC* functions
+  // here would compute Day N-1 for the first ~13 hours of local Day N.
+  const localToday = new Date();
+  const todayUtc = Date.UTC(localToday.getFullYear(), localToday.getMonth(), localToday.getDate());
+
   const DAY_MS = 86_400_000;
-  const daysElapsed = Math.max(0, Math.floor((todayUtc - startUtc) / DAY_MS));
-  const totalDays = plannedUtc ? Math.max(1, Math.floor((plannedUtc - startUtc) / DAY_MS)) : null;
-  const daysRemaining = totalDays ? Math.max(0, totalDays - daysElapsed) : null;
-  const percentComplete = totalDays ? Math.min(100, (daysElapsed / totalDays) * 100) : null;
+  const daysElapsed =
+    startUtc != null ? Math.max(0, Math.floor((todayUtc - startUtc) / DAY_MS)) : null;
+  const totalDays =
+    plannedUtc != null && startUtc != null
+      ? Math.max(1, Math.floor((plannedUtc - startUtc) / DAY_MS))
+      : null;
+  const daysRemaining =
+    totalDays != null && daysElapsed != null ? Math.max(0, totalDays - daysElapsed) : null;
+  const percentComplete =
+    totalDays != null && daysElapsed != null
+      ? Math.min(100, (daysElapsed / totalDays) * 100)
+      : null;
 
   // ─── Weight delta hint ────────────────────────────────────────────────
   const change = phase.target_weight_change_kg_per_week;
@@ -107,15 +121,18 @@ export function PhaseProgressCard({ phase }: Props) {
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <Calendar className="h-3.5 w-3.5" />
-            {totalDays ? (
+            {totalDays != null && daysElapsed != null && daysRemaining != null ? (
               <span>
                 Day {daysElapsed + 1} of {totalDays} · {daysRemaining} left
               </span>
-            ) : (
+            ) : daysElapsed != null ? (
               <span>
-                Started {phase.start_date} · {daysElapsed} day
+                Started {formatStart(phase.start_date)} · {daysElapsed} day
                 {daysElapsed === 1 ? "" : "s"} in
               </span>
+            ) : (
+              // Malformed start_date — render the raw value as a graceful fallback
+              <span>Started {phase.start_date}</span>
             )}
           </div>
           {percentComplete !== null && <ProgressBar value={percentComplete} color="indigo" />}
@@ -163,9 +180,26 @@ export function PhaseProgressCard({ phase }: Props) {
  * Parse a YYYY-MM-DD string as UTC midnight. Plain `new Date("2026-04-22")`
  * already returns UTC midnight, but `Date.parse` semantics for date-only
  * strings have varied across runtimes, so we go through Date.UTC explicitly.
+ *
+ * Returns null on malformed input. Earlier this fell back to `Date.now()`
+ * (current wall-clock millis), which silently turned `daysElapsed` into a
+ * very small positive number from the millisecond-since-epoch difference —
+ * the displayed "Day 1 of N" was actually meaningless.
  */
-function parseUtcDate(yyyyMmDd: string): number {
+function parseUtcDate(yyyyMmDd: string): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(yyyyMmDd);
-  if (!m) return Date.now();
+  if (!m) return null;
   return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+/** Friendly date for the open-ended "Started …" line. Falls back to the raw
+ *  YYYY-MM-DD if the locale formatter can't parse it. */
+function formatStart(yyyyMmDd: string): string {
+  const parsed = parseUtcDate(yyyyMmDd);
+  if (parsed == null) return yyyyMmDd;
+  return new Date(parsed).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }

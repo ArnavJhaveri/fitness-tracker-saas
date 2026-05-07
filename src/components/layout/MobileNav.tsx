@@ -51,8 +51,11 @@ export function MobileNav() {
   const [moreOpen, setMoreOpen] = useState(false);
 
   // True when the current page is one of the "More" items — keeps the button
-  // visually active so the user knows which section they are in.
-  const moreActive = MORE_NAV.some(({ href }) => pathname.startsWith(href));
+  // visually active so the user knows which section they are in. Match exact
+  // OR an immediate child path; bare startsWith would light up multiple
+  // entries when route prefixes overlap (e.g. /sleep matching /sleep-debt).
+  const isPrefixMatch = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const moreActive = MORE_NAV.some(({ href }) => isPrefixMatch(href));
 
   return (
     <>
@@ -86,7 +89,7 @@ export function MobileNav() {
 
             <ul className="grid grid-cols-4 gap-2">
               {MORE_NAV.map(({ href, label, icon: Icon }) => {
-                const isActive = pathname.startsWith(href);
+                const isActive = isPrefixMatch(href);
                 return (
                   <li key={href}>
                     <Link
@@ -120,7 +123,7 @@ export function MobileNav() {
           {PRIMARY_NAV.map((item) => {
             const { href, label, icon: Icon } = item;
             const exact = "exact" in item ? item.exact : false;
-            const isActive = exact ? pathname === href : pathname.startsWith(href);
+            const isActive = exact ? pathname === href : isPrefixMatch(href);
             return (
               <li key={href} className="flex-1">
                 <Link

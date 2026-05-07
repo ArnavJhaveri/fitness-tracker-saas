@@ -60,11 +60,14 @@ export async function listMeals(
 ): Promise<{ data: Meal[]; count: number }> {
   let query = supabase
     .from("meals")
-    // Select only the food_item columns needed for macro calculations —
-    // avoids fetching sugar_per_100g, sodium_per_100g, and other unused fields
-    // across potentially hundreds of items in a paginated list.
+    // Select only the food_item columns needed for macro calculations.
+    // Excluding sugar_per_100g + sodium_per_100g + fiber_per_100g (unused at
+    // the meal-list level) keeps the payload small across paginated lists.
+    // CRITICAL: only list columns that actually exist on `food_items` —
+    // a previous version listed `serving_size_g` which doesn't exist in the
+    // schema and made the entire meals list endpoint return 500.
     .select(
-      `*, meal_items ( *, food_items ( id, name, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, serving_size_g, is_custom, created_by ) )`,
+      `*, meal_items ( *, food_items ( id, name, brand, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, is_custom, created_by ) )`,
       { count: "exact" },
     )
     .eq("user_id", userId)

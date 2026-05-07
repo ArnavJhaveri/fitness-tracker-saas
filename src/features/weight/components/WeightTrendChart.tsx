@@ -19,6 +19,18 @@ interface Props {
 export function WeightTrendChart({ entries }: Props) {
   const sorted = [...entries].sort((a, b) => a.logged_at.localeCompare(b.logged_at)).slice(-60); // last 60 entries
 
+  // Defend against an empty array — Math.min/max([]) returns +Infinity/-Infinity
+  // which propagate into the chart's domain and crash Recharts. Parents
+  // currently guard against this at the call site, but the component itself
+  // shouldn't trust the caller.
+  if (sorted.length === 0) {
+    return (
+      <div className="flex h-[220px] items-center justify-center text-sm text-gray-400">
+        Not enough data yet
+      </div>
+    );
+  }
+
   const data = sorted.map((e) => ({
     date: new Date(e.logged_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
     kg: e.weight_kg,

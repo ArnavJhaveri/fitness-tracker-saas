@@ -17,6 +17,7 @@
  * have already verified ownership.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { localDateStrInTz } from "@/lib/utils/date";
 import type { Phase, ResolvedDailyTargets, UserSettings, UUID } from "@/types/database";
 
 /**
@@ -109,27 +110,33 @@ async function findPhaseForDate(
  * Main entry point. Loads user_settings + the phase covering `date` and
  * applies the resolution rules.
  *
- * @param date - YYYY-MM-DD; defaults to today (server's UTC date)
+ * When `date` is omitted we resolve "today in the user's local timezone"
+ * rather than UTC. A user in NZT (UTC+13) opening their dashboard at 8am
+ * local time is on UTC's previous day — defaulting to UTC's "today" would
+ * pick the wrong phase if a pivot landed on the local-day boundary.
+ *
+ * @param date - YYYY-MM-DD; defaults to today in the user's local TZ
  */
 export async function resolveDailyTargets(
   supabase: SupabaseClient,
   userId: UUID,
   date?: string,
 ): Promise<ResolvedDailyTargets> {
-  const targetDate = date ?? new Date().toISOString().slice(0, 10);
-
-  const [settingsRes, phase] = await Promise.all([
-    supabase
-      .from("user_settings")
-      .select(
-        "daily_calorie_target, daily_protein_target_g, daily_carbs_target_g, daily_fat_target_g, daily_sugar_target_g, daily_water_target_ml, sleep_target_minutes, weekly_workout_hours_target",
-      )
-      .eq("user_id", userId)
-      .maybeSingle(),
-    findPhaseForDate(supabase, userId, targetDate),
-  ]);
+  const settingsRes = await supabase
+    .from("user_settings")
+    .select(
+      "timezone, daily_calorie_target, daily_protein_target_g, daily_carbs_target_g, daily_fat_target_g, daily_sugar_target_g, daily_water_target_ml, sleep_target_minutes, weekly_workout_hours_target",
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
 
   if (settingsRes.error) throw settingsRes.error;
+  const settings = settingsRes.data as
+    | (Parameters<typeof applyResolution>[0] & { timezone?: string })
+    | null;
 
-  return applyResolution(settingsRes.data as Parameters<typeof applyResolution>[0], phase);
+  const targetDate = date ?? localDateStrInTz(settings?.timezone ?? "UTC");
+  const phase = await findPhaseForDate(supabase, userId, targetDate);
+
+  return applyResolution(settings, phase);
 }

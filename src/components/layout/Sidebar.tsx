@@ -48,7 +48,11 @@ function NavItem({
   exact?: boolean;
 }) {
   const pathname = usePathname();
-  const isActive = exact ? pathname === href : pathname.startsWith(href);
+  // Match either an exact equality OR an immediate child path. Plain
+  // `pathname.startsWith(href)` would light up `/sleep` when on `/sleep-debt`,
+  // because /sleep-debt also starts with /sleep. Requiring a trailing slash
+  // for the prefix check eliminates that collision.
+  const isActive = exact ? pathname === href : pathname === href || pathname.startsWith(href + "/");
 
   return (
     <Link

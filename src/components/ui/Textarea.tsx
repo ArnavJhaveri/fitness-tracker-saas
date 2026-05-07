@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, useId } from "react";
 import { cn } from "@/lib/utils/cn";
 
 export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -6,9 +6,18 @@ export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextArea
   error?: string;
 }
 
+/**
+ * Accessible textarea with optional label and error message.
+ *
+ * Field id is generated via React.useId() unless an explicit `id` is passed.
+ * The error is linked via aria-describedby so screen readers announce it
+ * when focus enters the field.
+ */
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, error, id, ...props }, ref) => {
-    const fieldId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
+    const generatedId = useId();
+    const fieldId = id ?? generatedId;
+    const errorId = `${fieldId}-error`;
 
     return (
       <div className="flex flex-col gap-1.5">
@@ -21,6 +30,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           id={fieldId}
           aria-invalid={!!error}
+          aria-describedby={error ? errorId : undefined}
           rows={3}
           className={cn(
             "w-full rounded-lg border px-3 py-2 text-sm transition-colors",
@@ -34,7 +44,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           {...props}
         />
         {error && (
-          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          <p id={errorId} role="alert" className="text-xs text-red-600 dark:text-red-400">
             {error}
           </p>
         )}

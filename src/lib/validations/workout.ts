@@ -72,14 +72,32 @@ export const createSetSchema = z.object({
   is_warmup: z.boolean().default(false),
 });
 
-export const createWorkoutSessionSchema = z.object({
-  name: z.string().min(1).max(200).trim(),
-  notes: z.string().max(2000).optional().nullable(),
-  started_at: z.string().datetime(),
-  ended_at: z.string().datetime().optional().nullable(),
-});
+export const createWorkoutSessionSchema = z
+  .object({
+    name: z.string().min(1).max(200).trim(),
+    notes: z.string().max(2000).optional().nullable(),
+    started_at: z.string().datetime(),
+    ended_at: z.string().datetime().optional().nullable(),
+  })
+  .refine((d) => !d.ended_at || d.ended_at >= d.started_at, {
+    message: "ended_at must be on or after started_at",
+    path: ["ended_at"],
+  });
 
-export const updateWorkoutSessionSchema = createWorkoutSessionSchema.partial();
+// `.partial()` on a `.refine()`'d schema strips the cross-field check, so
+// re-apply it. PATCH callers may submit just one of the two fields, in
+// which case the refine's check is a no-op (only enforced if both present).
+export const updateWorkoutSessionSchema = z
+  .object({
+    name: z.string().min(1).max(200).trim().optional(),
+    notes: z.string().max(2000).optional().nullable(),
+    started_at: z.string().datetime().optional(),
+    ended_at: z.string().datetime().optional().nullable(),
+  })
+  .refine((d) => !d.started_at || !d.ended_at || d.ended_at >= d.started_at, {
+    message: "ended_at must be on or after started_at",
+    path: ["ended_at"],
+  });
 
 export const updateSetSchema = createSetSchema.partial();
 
