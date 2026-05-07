@@ -13,6 +13,7 @@ import {
   BarChart2,
   Settings,
   Activity,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { ROUTES, APP_NAME } from "@/constants";
@@ -20,6 +21,7 @@ import { ROUTES, APP_NAME } from "@/constants";
 const NAV_ITEMS = [
   { href: ROUTES.DASHBOARD, label: "Overview", icon: Activity, exact: true },
   { href: ROUTES.WORKOUTS, label: "Workouts", icon: Dumbbell },
+  { href: ROUTES.EXERCISES, label: "Exercises", icon: ListChecks },
   { href: ROUTES.NUTRITION, label: "Nutrition", icon: Utensils },
   { href: ROUTES.SLEEP, label: "Sleep", icon: Moon },
   { href: ROUTES.WATER, label: "Water", icon: Droplets },

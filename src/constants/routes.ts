@@ -16,6 +16,7 @@ export const ROUTES = {
   // Protected — dashboard
   DASHBOARD: "/dashboard",
   WORKOUTS: "/dashboard/workouts",
+  EXERCISES: "/dashboard/exercises",
   NUTRITION: "/dashboard/nutrition",
   SLEEP: "/dashboard/sleep",
   WATER: "/dashboard/water",

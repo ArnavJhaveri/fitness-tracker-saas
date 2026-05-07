@@ -16,15 +16,51 @@ const muscleGroupEnum = z.enum([
   "cardio",
 ]);
 
-const exerciseCategoryEnum = z.enum(["strength", "cardio", "flexibility", "sports"]);
+/**
+ * Curated category list with rich UI affordances. Migration 003 dropped the
+ * DB CHECK constraint, so users can introduce any category string — we
+ * accept any non-empty trimmed string here. The names listed below get
+ * icons and grouping in the exercise library UI; unknown categories fall
+ * back to a generic look.
+ */
+export const KNOWN_CATEGORIES = [
+  "strength",
+  "cardio",
+  "flexibility",
+  "sports",
+  "calisthenics",
+  "mobility",
+  "yoga",
+  "other",
+] as const;
+
+// Trim BEFORE the length check so "   " (whitespace-only) is rejected. The
+// chain order matters: `.min(1).trim()` validates the raw string first, so
+// "   " passes min(1) (length 3) and then trims to "". The transform-and-refine
+// pattern below applies length checks to the trimmed result.
+const exerciseCategorySchema = z
+  .string()
+  .max(40, "Category must be 40 characters or fewer")
+  .transform((s) => s.trim())
+  .refine((s) => s.length > 0, { message: "Category is required" });
 
 export const createExerciseSchema = z.object({
   name: z.string().min(1).max(100).trim(),
-  category: exerciseCategoryEnum,
+  category: exerciseCategorySchema,
   primary_muscle_group: muscleGroupEnum,
   secondary_muscle_groups: z.array(muscleGroupEnum).max(4).default([]),
   instructions: z.string().max(2000).optional().nullable(),
 });
+
+export const updateExerciseSchema = z
+  .object({
+    name: z.string().min(1).max(100).trim().optional(),
+    category: exerciseCategorySchema.optional(),
+    primary_muscle_group: muscleGroupEnum.optional(),
+    secondary_muscle_groups: z.array(muscleGroupEnum).max(4).optional(),
+    instructions: z.string().max(2000).optional().nullable(),
+  })
+  .strict();
 
 export const createSetSchema = z.object({
   set_number: z.number().int().min(1).max(100),
@@ -54,6 +90,7 @@ export const addExerciseToWorkoutSchema = z.object({
 });
 
 export type CreateExerciseInput = z.infer<typeof createExerciseSchema>;
+export type UpdateExerciseInput = z.infer<typeof updateExerciseSchema>;
 export type CreateSetInput = z.infer<typeof createSetSchema>;
 export type UpdateSetInput = z.infer<typeof updateSetSchema>;
 export type CreateWorkoutSessionInput = z.infer<typeof createWorkoutSessionSchema>;

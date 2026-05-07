@@ -1,12 +1,6 @@
 /**
- * GET /api/exercises — search the exercise library
- *
- * Query params:
- *   q          string  — search term (name contains, case-insensitive)
- *   category   string  — filter by category (strength | cardio | flexibility | sports)
- *   muscle     string  — filter by primary_muscle_group
- *   page       number  — default 1
- *   per_page   number  — default 20, max 100
+ * GET  /api/exercises — search the exercise library (system + caller's custom)
+ * POST /api/exercises — create a new custom exercise
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -14,7 +8,10 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
 import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
-import { parseSearchParams } from "@/lib/validations/shared";
+import { parseRequestBody, parseSearchParams } from "@/lib/validations/shared";
+import { createExerciseSchema } from "@/lib/validations";
+import { createCustomExercise, searchExercises } from "@/lib/db/exercises";
+import { logger } from "@/lib/logger";
 import type { ApiSuccess } from "@/types/api";
 import type { Exercise } from "@/types/database";
 
@@ -24,6 +21,10 @@ const querySchema = z.object({
   muscle: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),
   per_page: z.coerce.number().int().positive().max(100).default(20),
+  include_archived: z
+    .union([z.literal("true"), z.literal("false")])
+    .optional()
+    .transform((v) => v === "true"),
 });
 
 export async function GET(request: NextRequest) {
@@ -38,29 +39,54 @@ export async function GET(request: NextRequest) {
 
     const params = parseSearchParams(Object.fromEntries(request.nextUrl.searchParams), querySchema);
 
-    let query = supabase
-      .from("exercises")
-      .select("*", { count: "exact" })
-      .order("name", { ascending: true })
-      .range((params.page - 1) * params.per_page, params.page * params.per_page - 1);
-
-    if (params.q?.trim()) query = query.ilike("name", `%${params.q.trim()}%`);
-    if (params.category) query = query.eq("category", params.category);
-    if (params.muscle) query = query.eq("primary_muscle_group", params.muscle);
-
-    const { data, error, count } = await query;
-    if (error) throw error;
+    const { data, count } = await searchExercises(supabase, {
+      q: params.q,
+      category: params.category,
+      muscle: params.muscle,
+      page: params.page,
+      per_page: params.per_page,
+      userId: user.id,
+      includeArchived: params.include_archived,
+    });
 
     return NextResponse.json<ApiSuccess<Exercise[]>>({
       success: true,
-      data: (data ?? []) as Exercise[],
+      data,
       meta: {
         page: params.page,
         per_page: params.per_page,
-        total: count ?? 0,
-        total_pages: Math.ceil((count ?? 0) / params.per_page),
+        total: count,
+        total_pages: Math.ceil(count / params.per_page),
       },
     });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    await enforceRateLimit("api:exercises:post", apiLimiter);
+
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new UnauthorizedError();
+
+    const body = await parseRequestBody(request, createExerciseSchema);
+    const exercise = await createCustomExercise(supabase, user.id, body);
+
+    logger.info("Custom exercise created", {
+      userId: user.id,
+      exerciseId: exercise.id,
+      category: exercise.category,
+    });
+
+    return NextResponse.json<ApiSuccess<Exercise>>(
+      { success: true, data: exercise },
+      { status: 201 },
+    );
   } catch (err) {
     return handleRouteError(err);
   }
