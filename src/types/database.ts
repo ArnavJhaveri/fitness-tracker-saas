@@ -13,6 +13,8 @@ export type ISOTimestamp = string; // ISO 8601
 
 // ─── Profile ─────────────────────────────────────────────────────────────────
 
+export type SexAtBirth = "male" | "female" | "intersex" | "prefer_not_to_say";
+
 export interface Profile {
   id: UUID;
   email: string;
@@ -21,6 +23,10 @@ export interface Profile {
   height_cm: number | null;
   date_of_birth: ISODate | null;
   timezone: string;
+  /** Phase 3: optional, used only for BMR/TDEE calculations */
+  sex_at_birth: SexAtBirth | null;
+  /** Phase 3: denormalised cache of latest weight_entries row */
+  current_weight_kg: number | null;
   created_at: ISOTimestamp;
   updated_at: ISOTimestamp;
 }
@@ -42,7 +48,22 @@ export type MuscleGroup =
   | "full_body"
   | "cardio";
 
-export type ExerciseCategory = "strength" | "cardio" | "flexibility" | "sports";
+/**
+ * Curated set of exercise categories that get rich UI (icons, filters).
+ * The DB column is `text` with NO CHECK constraint as of migration 003 —
+ * users can introduce arbitrary categories. Unknown categories render
+ * with a generic look; known categories use the registry in src/lib/registry/exercise-categories.ts.
+ */
+export type ExerciseCategory =
+  | "strength"
+  | "cardio"
+  | "flexibility"
+  | "sports"
+  | "calisthenics"
+  | "mobility"
+  | "yoga"
+  | "other"
+  | (string & {}); // permissive: allow any text from the DB
 
 export interface Exercise {
   id: UUID;
@@ -53,6 +74,8 @@ export interface Exercise {
   instructions: string | null;
   is_custom: boolean;
   created_by: UUID | null; // null = system exercise
+  /** Phase 3: soft-delete timestamp; null means active */
+  archived_at: ISOTimestamp | null;
   created_at: ISOTimestamp;
 }
 
@@ -174,6 +197,11 @@ export interface WeightEntry {
 
 // ─── Goals ────────────────────────────────────────────────────────────────────
 
+/**
+ * Curated set of goal types with rich UI. The DB column has no CHECK
+ * constraint as of migration 003 — additional types render generically.
+ * See src/lib/registry/goal-types.ts for the rich-UI registry.
+ */
 export type GoalType =
   | "weight_loss"
   | "weight_gain"
@@ -184,7 +212,8 @@ export type GoalType =
   | "water_target"
   | "sleep_target"
   | "workout_frequency"
-  | "custom";
+  | "custom"
+  | (string & {});
 
 export type GoalStatus = "active" | "completed" | "paused" | "abandoned";
 
@@ -199,11 +228,29 @@ export interface Goal {
   unit: string | null;
   target_date: ISODate | null;
   status: GoalStatus;
+  /** Phase 3: optional link to the phase that owns this goal */
+  phase_id: UUID | null;
   created_at: ISOTimestamp;
   updated_at: ISOTimestamp;
 }
 
 // ─── User Settings ────────────────────────────────────────────────────────────
+
+export type ActivityLevel = "sedentary" | "light" | "moderate" | "very_active" | "extra_active";
+
+/**
+ * Multi-select chips collected during onboarding step 1.
+ * Drives which dashboard widgets show by default, but every choice is
+ * also overridable via explicit add/remove later.
+ */
+export type PrimaryIntent =
+  | "track_workouts"
+  | "track_nutrition"
+  | "lose_weight"
+  | "gain_muscle"
+  | "improve_endurance"
+  | "improve_sleep"
+  | "general_fitness";
 
 export interface UserSettings {
   user_id: UUID;
@@ -213,15 +260,90 @@ export interface UserSettings {
   water_unit: "ml" | "oz";
   daily_calorie_target: number | null;
   daily_protein_target_g: number | null;
+  /** Phase 3 */
+  daily_carbs_target_g: number | null;
+  daily_fat_target_g: number | null;
+  daily_sugar_target_g: number | null;
   daily_water_target_ml: number;
   sleep_target_minutes: number;
+  /** Phase 3 */
+  weekly_workout_hours_target: number | null;
   default_rest_seconds: number | null;
   theme: "light" | "dark" | "system";
   week_starts_on: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   timezone: string;
   notifications_enabled: boolean;
+  /** Phase 3: onboarding state — null means show banner / wizard */
+  onboarded_at: ISOTimestamp | null;
+  activity_level: ActivityLevel | null;
+  dietary_pattern: string | null;
+  excluded_foods: string[] | null;
+  primary_intents: PrimaryIntent[] | null;
+  /** Reserved for v2 adaptive-targets feature; not yet read from */
+  adaptive_targets: boolean;
   created_at: ISOTimestamp;
   updated_at: ISOTimestamp;
+}
+
+// ─── Phases (migration 003) ───────────────────────────────────────────────────
+
+export type PhaseType =
+  | "cut"
+  | "bulk"
+  | "maintenance"
+  | "recomp"
+  | "strength_block"
+  | "hypertrophy_block"
+  | "endurance_block"
+  | "general_fitness"
+  | "custom";
+
+export type PhaseStatus = "planned" | "active" | "ended" | "superseded";
+
+export interface Phase {
+  id: UUID;
+  user_id: UUID;
+  name: string;
+  phase_type: PhaseType;
+  notes: string | null;
+  start_date: ISODate;
+  planned_end_date: ISODate | null;
+  actual_end_date: ISODate | null;
+  status: PhaseStatus;
+  daily_calorie_target: number | null;
+  daily_protein_target_g: number | null;
+  daily_carbs_target_g: number | null;
+  daily_fat_target_g: number | null;
+  daily_sugar_target_g: number | null;
+  daily_water_target_ml: number | null;
+  weekly_workout_target: number | null;
+  weekly_workout_hours_target: number | null;
+  target_weight_kg: number | null;
+  target_weight_change_kg_per_week: number | null;
+  superseded_by_phase_id: UUID | null;
+  derived_from_phase_id: UUID | null;
+  created_at: ISOTimestamp;
+  updated_at: ISOTimestamp;
+}
+
+/**
+ * Resolved daily targets — output of resolveDailyTargets().
+ * Any field can be null if neither the active phase nor user_settings provides
+ * a value. UI must render gracefully when targets are missing.
+ */
+export interface ResolvedDailyTargets {
+  daily_calorie_target: number | null;
+  daily_protein_target_g: number | null;
+  daily_carbs_target_g: number | null;
+  daily_fat_target_g: number | null;
+  daily_sugar_target_g: number | null;
+  daily_water_target_ml: number | null;
+  sleep_target_minutes: number | null;
+  weekly_workout_hours_target: number | null;
+  /** The phase that supplied any non-null overrides; null means companion mode */
+  active_phase_id: UUID | null;
+  active_phase_name: string | null;
+  active_phase_type: PhaseType | null;
 }
 
 // ─── Workout Templates ────────────────────────────────────────────────────────
@@ -376,6 +498,16 @@ export interface Database {
         Row: Goal;
         Insert: Omit<Goal, "id" | "created_at" | "updated_at">;
         Update: Partial<Omit<Goal, "id" | "user_id" | "created_at">>;
+      };
+      phases: {
+        Row: Phase;
+        Insert: Omit<Phase, "id" | "created_at" | "updated_at">;
+        Update: Partial<Omit<Phase, "id" | "user_id" | "created_at">>;
+      };
+      user_settings: {
+        Row: UserSettings;
+        Insert: Omit<UserSettings, "created_at" | "updated_at">;
+        Update: Partial<Omit<UserSettings, "user_id" | "created_at">>;
       };
     };
   };
