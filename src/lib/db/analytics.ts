@@ -27,19 +27,29 @@ export async function getDailySummary(
 }
 
 /**
- * Today's snapshot — single row from the daily summary for the current date.
- * Note: the API route accepts `from`/`to` as client-supplied local dates, so
- * callers that need the user's local "today" should pass it from the request
- * rather than computing it server-side.  This helper is only used internally
- * and is correct for UTC-based server operations.
+ * Today's snapshot — single row from the daily summary for the supplied
+ * local date.
+ *
+ * `localDate` is REQUIRED. Earlier this helper accepted an optional date
+ * and fell back to `new Date().toISOString().split("T")[0]` (UTC) when the
+ * caller didn't pass one. That fallback was wrong by up to ±12 hours for
+ * users far from UTC: a Pacific/Auckland user pulling "today's" macros at
+ * 22:00 local would see the *next* UTC day's row (empty), and a UTC-12
+ * user at 02:00 local would see *yesterday's*. There were no production
+ * callers relying on the fallback — the only api route resolves the date
+ * client-side and threads it through `getDailySummary` directly — so we
+ * tighten the type rather than thread `user_settings.timezone` through.
+ *
+ * Callers should compute `localDate` either from a client-supplied query
+ * param (request-driven) or from `localDateStrInTz(user_settings.timezone)`
+ * (server-driven). Both paths produce a calendar date that matches the
+ * user's wall clock.
  */
 export async function getTodaySummary(
   supabase: SupabaseClient,
   userId: string,
-  localDate?: string,
+  localDate: string,
 ): Promise<DailySummary | null> {
-  // Prefer a caller-supplied local date; fall back to server UTC (may differ by up to ±12h)
-  const today = localDate ?? new Date().toISOString().split("T")[0];
-  const rows = await getDailySummary(supabase, userId, today, today);
+  const rows = await getDailySummary(supabase, userId, localDate, localDate);
   return rows[0] ?? null;
 }

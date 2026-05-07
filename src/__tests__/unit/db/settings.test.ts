@@ -1,11 +1,20 @@
 /**
  * Unit tests for src/lib/db/settings.ts
  *
- * The settings repo is small but has one subtle invariant: getSettings()
- * must always return a row, even if the auto-create-on-signup trigger
- * misfired or the row was manually deleted. The test pins the read-then-
- * upsert fallback path. upsertSettings() is also where we ensure user_id
- * is always injected from the session, never trusted from the client body.
+ * getSettings() has two invariants worth pinning:
+ *
+ *   1. It must always return a row — even if the auto-create-on-signup
+ *      trigger misfired or the row was manually deleted, the read-then-
+ *      upsert fallback recovers the user.
+ *   2. The fallback is gated on "no row found", NOT on "any error". An
+ *      earlier version used `.single()` plus a blanket `if (error || !data)
+ *      upsert(...)`, which silently masked auth bugs (RLS denials, network
+ *      failures) by inserting a phantom row. The current implementation
+ *      uses `.maybeSingle()` so `error` only fires for real failures and
+ *      `data: null` is the legitimate empty state.
+ *
+ * upsertSettings() is also where we ensure user_id is always injected
+ * from the session, never trusted from the client body.
  */
 import { describe, it, expect } from "vitest";
 import { getSettings, upsertSettings } from "@/lib/db/settings";
@@ -40,25 +49,32 @@ describe("db/settings — getSettings", () => {
     expect(upsertOp?.[1][0]).toEqual({ user_id: "user-1" });
   });
 
-  it("falls back to upsert when the read errors", async () => {
-    // PostgREST returns an error for "no row" with .single(); the wrapper
-    // treats that the same as no row.
+  it("throws on a real read error rather than silently upserting (RLS-mask regression guard)", async () => {
+    // The previous implementation used `.single()` and treated
+    // `error || !data` as "no row, so upsert". That meant a row-level
+    // security denial — a real bug — surfaced as a successful settings
+    // create, hiding the auth problem. With `.maybeSingle()` errors only
+    // fire for genuine failures, and we re-throw them.
     const m = makeSupabaseMock();
-    m.queue({ data: null, error: { message: "PGRST116: no rows" } });
-    m.queue({ data: { user_id: "user-1" }, error: null });
-
-    const result = await getSettings(m.supabase, "user-1");
-    expect(result).toMatchObject({ user_id: "user-1" });
-  });
-
-  it("throws when the upsert fallback also fails", async () => {
-    // Both paths down → bubble up rather than silently return a phantom object.
-    const m = makeSupabaseMock();
-    m.queue({ data: null, error: null });
     m.queue({ data: null, error: { message: "row-level security violation" } });
 
     await expect(getSettings(m.supabase, "user-1")).rejects.toMatchObject({
       message: "row-level security violation",
+    });
+    // Crucially: only the read happened. No upsert masked the error.
+    expect(m.calls.length).toBe(1);
+  });
+
+  it("throws when the upsert fallback also fails", async () => {
+    // Read returned legitimate empty (data: null, error: null) → upsert
+    // fired → upsert itself failed. Bubble up rather than silently return
+    // a phantom object.
+    const m = makeSupabaseMock();
+    m.queue({ data: null, error: null });
+    m.queue({ data: null, error: { message: "duplicate key" } });
+
+    await expect(getSettings(m.supabase, "user-1")).rejects.toMatchObject({
+      message: "duplicate key",
     });
   });
 });
