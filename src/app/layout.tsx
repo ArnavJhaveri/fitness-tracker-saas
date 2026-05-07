@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { ToastProvider } from "@/components/ui/Toast";
 import { WebVitals } from "@/components/WebVitals";
 import { APP_NAME, APP_DESCRIPTION, APP_URL } from "@/constants/app";
 
@@ -47,8 +48,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-full">
         <AuthProvider>
           <QueryProvider>
-            <WebVitals />
-            {children}
+            <ToastProvider>
+              <WebVitals />
+              {children}
+            </ToastProvider>
           </QueryProvider>
         </AuthProvider>
       </body>

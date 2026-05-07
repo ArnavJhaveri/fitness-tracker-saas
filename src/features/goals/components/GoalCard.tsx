@@ -3,6 +3,7 @@
 import { Trash2, CheckCircle2 } from "lucide-react";
 import type { Goal } from "@/types/database";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { useToast } from "@/components/ui/Toast";
 import { useUpdateGoal, useDeleteGoal } from "../hooks/useGoals";
 
 const STATUS_BADGE: Record<string, string> = {
@@ -19,6 +20,7 @@ interface Props {
 export function GoalCard({ goal }: Props) {
   const { mutate: updateGoal } = useUpdateGoal();
   const { mutate: deleteGoal } = useDeleteGoal();
+  const toast = useToast();
 
   const progress =
     goal.target_value && goal.current_value != null
@@ -28,14 +30,18 @@ export function GoalCard({ goal }: Props) {
   function markComplete() {
     updateGoal(
       { id: goal.id, data: { status: "completed" } },
-      { onError: () => window.alert("Failed to update goal. Please try again.") },
+      {
+        onSuccess: () => toast.success("Goal marked complete 🎉"),
+        onError: () => toast.error("Failed to update goal. Please try again."),
+      },
     );
   }
 
-  function handleDelete() {
-    if (!window.confirm(`Delete "${goal.title}"? This cannot be undone.`)) return;
+  async function handleDelete() {
+    const ok = await toast.confirm(`Delete "${goal.title}"? This cannot be undone.`, "Delete");
+    if (!ok) return;
     deleteGoal(goal.id, {
-      onError: () => window.alert("Failed to delete goal. Please try again."),
+      onError: () => toast.error("Failed to delete goal. Please try again."),
     });
   }
 

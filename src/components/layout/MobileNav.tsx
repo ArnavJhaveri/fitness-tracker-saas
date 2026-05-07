@@ -3,48 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Dumbbell,
-  Utensils,
-  Moon,
-  Droplets,
-  MoreHorizontal,
-  Activity,
-  Scale,
-  BarChart2,
-  Target,
-  Settings,
-  X,
-} from "lucide-react";
+import { MoreHorizontal, X } from "lucide-react";
 import type { Route } from "next";
 import { cn } from "@/lib/utils/cn";
-import { ROUTES } from "@/constants";
+import { NAV_ITEMS } from "./navItems";
 
 /**
  * Bottom tab bar shown on mobile (< lg screens).
  *
- * The five primary sections are always visible. Additional pages (Weight,
- * Analytics, Goals, Settings) are reachable via the "More" sheet so all
- * sections have a touch target without overcrowding the bar.
+ * Renders nav entries from the shared NAV_ITEMS list — `primary: true`
+ * items go in the bottom bar, the rest in the "More" sheet. This avoids
+ * the drift bug the audit caught (Sidebar had Exercises + Phases that
+ * MobileNav silently dropped, making them unreachable on mobile).
  *
  * z-index convention for this file:
  *   z-40  — nav bar
  *   z-50  — "More" backdrop + drawer (must sit above the bar)
  */
-const PRIMARY_NAV = [
-  { href: ROUTES.DASHBOARD, label: "Home", icon: Activity, exact: true },
-  { href: ROUTES.WORKOUTS, label: "Workout", icon: Dumbbell },
-  { href: ROUTES.NUTRITION, label: "Nutrition", icon: Utensils },
-  { href: ROUTES.SLEEP, label: "Sleep", icon: Moon },
-  { href: ROUTES.WATER, label: "Water", icon: Droplets },
-] as const;
-
-const MORE_NAV = [
-  { href: ROUTES.WEIGHT, label: "Weight", icon: Scale },
-  { href: ROUTES.ANALYTICS, label: "Analytics", icon: BarChart2 },
-  { href: ROUTES.GOALS, label: "Goals", icon: Target },
-  { href: ROUTES.SETTINGS, label: "Settings", icon: Settings },
-] as const;
+const PRIMARY_NAV = NAV_ITEMS.filter((i) => i.primary);
+const MORE_NAV = NAV_ITEMS.filter((i) => !i.primary);
 
 export function MobileNav() {
   const pathname = usePathname();
@@ -147,13 +124,17 @@ export function MobileNav() {
               </button>
             </div>
 
-            <ul className="grid grid-cols-4 gap-2">
-              {MORE_NAV.map(({ href, label, icon: Icon }) => {
-                const isActive = isPrefixMatch(href);
+            {/* 3-up grid; the More sheet now hosts up to 6 entries (was hard-
+                coded 4 cols which clipped extras). grid-cols-3 stays
+                comfortable on narrow phones. */}
+            <ul className="grid grid-cols-3 gap-2">
+              {MORE_NAV.map((item) => {
+                const Icon = item.icon;
+                const isActive = isPrefixMatch(item.href);
                 return (
-                  <li key={href}>
+                  <li key={item.href}>
                     <Link
-                      href={href as Route}
+                      href={item.href as Route}
                       onClick={() => setMoreOpen(false)}
                       aria-current={isActive ? "page" : undefined}
                       className={cn(
@@ -164,7 +145,7 @@ export function MobileNav() {
                       )}
                     >
                       <Icon className="h-5 w-5" />
-                      {label}
+                      {item.label}
                     </Link>
                   </li>
                 );
@@ -181,13 +162,15 @@ export function MobileNav() {
       >
         <ul className="flex h-16 items-center justify-around">
           {PRIMARY_NAV.map((item) => {
-            const { href, label, icon: Icon } = item;
-            const exact = "exact" in item ? item.exact : false;
-            const isActive = exact ? pathname === href : isPrefixMatch(href);
+            const Icon = item.icon;
+            const isActive = item.exact ? pathname === item.href : isPrefixMatch(item.href);
+            // The 5-up bar uses shortLabel ("Workout" not "Workouts") to keep
+            // each tab readable on a 360px viewport.
+            const label = item.shortLabel ?? item.label;
             return (
-              <li key={href} className="flex-1">
+              <li key={item.href} className="flex-1">
                 <Link
-                  href={href as Route}
+                  href={item.href as Route}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "flex flex-col items-center gap-0.5 py-2 text-xs font-medium transition-colors",

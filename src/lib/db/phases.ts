@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NotFoundError, ValidationError } from "@/lib/errors";
-import { dayBefore, localDateStrInTz } from "@/lib/utils/date";
+import { localDateStrInTz } from "@/lib/utils/date";
 import type { Phase, UUID } from "@/types/database";
 import type { CreatePhaseInput, UpdatePhaseCosmeticInput } from "@/lib/validations/phases";
 
@@ -156,28 +156,22 @@ export async function endPhase(
 }
 
 /**
- * Pivot — end the current active phase and start a new one in a structured
- * sequence of writes.
+ * Pivot — end the current active phase and start a new one atomically.
  *
- * PostgREST doesn't expose transactions in the JS client, so we cannot make
- * the multi-row update atomic. Instead we lean on two invariants:
+ * Implementation: calls the `pivot_phase` Postgres RPC (migration 004).
+ * That function wraps lock + status flip + insert + lineage pointer in a
+ * single transaction, which fixes two problems with the previous chained-
+ * PostgREST approach:
  *
- *   1. The unique partial index `(user_id) WHERE status='active'` — only
- *      ONE active phase per user, ever, enforced by the DB.
- *   2. Step ordering — the old phase's status moves OFF 'active' BEFORE
- *      the new phase is inserted as 'active'. If those happen in the
- *      opposite order, the unique index would reject the new insert.
+ *   (a) Two-tab concurrent pivots could interleave the status flip + insert,
+ *       leaving inconsistent state.
+ *   (b) A step-2 failure (e.g. CHECK violation on the new phase) used to
+ *       leave the old phase incorrectly marked 'superseded' with no
+ *       successor, requiring a compensating revert in app code.
  *
- * Writes:
- *   (1) mark old phase 'superseded' with actual_end_date = newStart − 1
- *   (2) insert new active phase with derived_from_phase_id pointing at old
- *   (3) patch old phase's superseded_by_phase_id pointer (cosmetic, non-fatal)
- *
- * If (1) succeeds but (2) fails, the user is left with NO active phase
- * AND the old phase incorrectly marked 'superseded'. We compensate by
- * rolling old back to 'ended' (a terminal state with no successor) — the
- * user lands in companion mode rather than a broken-lineage state, and
- * the error message reflects that accurately.
+ * Application-side validation here is mostly redundant with the RPC's own
+ * checks — but keeping it gives clean ValidationError messages without a
+ * round trip when the caller obviously got it wrong.
  */
 export async function pivotPhase(
   supabase: SupabaseClient,
@@ -185,92 +179,62 @@ export async function pivotPhase(
   oldPhaseId: UUID,
   newPhaseInput: CreatePhaseInput,
 ): Promise<{ oldPhase: Phase; newPhase: Phase }> {
-  // 1. Verify ownership AND that this phase is currently active.
+  // Pre-flight checks — mirrored by the RPC, but caught here cheaper.
   const old = await getPhase(supabase, userId, oldPhaseId);
   if (old.status !== "active") {
     throw new ValidationError("Only the active phase can be pivoted.");
   }
-  // The new phase must start strictly AFTER the old phase started — otherwise
-  // we'd compute actual_end_date < start_date and trip phases_actual_end_sane.
   if (newPhaseInput.start_date <= old.start_date) {
     throw new ValidationError("The new phase must start after the current phase started.");
   }
-  // The new phase must also start TODAY OR LATER. Pivoting to a past date
-  // would silently rewrite the targets that historical days resolve against,
-  // breaking the "history is sacred" invariant from migration 003. The user's
-  // local timezone is the right reference — UTC's "today" can be off by a day.
   const { data: tzRow } = await supabase
     .from("user_settings")
     .select("timezone")
     .eq("user_id", userId)
     .maybeSingle();
   const tz = (tzRow as { timezone?: string } | null)?.timezone ?? "UTC";
-  const today = localDateStrInTz(tz);
-  if (newPhaseInput.start_date < today) {
+  if (newPhaseInput.start_date < localDateStrInTz(tz)) {
     throw new ValidationError(
       "The new phase's start date can't be in the past — phases never rewrite history.",
     );
   }
 
-  // dayBefore() does pure UTC calendar arithmetic — DST-safe and matches
-  // how Supabase stores DATE columns (no TZ). new Date(...) - 86_400_000ms
-  // would silently miscompute on the spring-forward boundary.
-  const oldEndDate = dayBefore(newPhaseInput.start_date);
-
-  // 2. Mark old phase as superseded.
-  const { data: oldUpdated, error: e1 } = await supabase
-    .from("phases")
-    .update({ status: "superseded", actual_end_date: oldEndDate })
-    .eq("id", oldPhaseId)
-    .eq("user_id", userId)
-    .select()
-    .single();
-  if (e1 || !oldUpdated) throw e1 ?? new NotFoundError("Phase");
-
-  // 3. Insert new phase with derived_from_phase_id lineage.
-  const { data: created, error: e2 } = await supabase
-    .from("phases")
-    .insert({
+  // Atomic RPC call. The function returns { old_phase_id, new_phase_id };
+  // we re-fetch the full rows so callers get the same shape they did
+  // before the migration.
+  const { data: rpcResult, error: rpcErr } = await supabase.rpc("pivot_phase", {
+    p_old_phase_id: oldPhaseId,
+    p_new_phase: {
       ...newPhaseInput,
-      user_id: userId,
-      status: "active",
-      derived_from_phase_id: oldPhaseId,
-    })
-    .select()
-    .single();
+      // Stringify nullable date fields so the JSONB shape uses "" → null
+      // via the RPC's NULLIF idiom.
+      planned_end_date: newPhaseInput.planned_end_date ?? "",
+      daily_calorie_target: newPhaseInput.daily_calorie_target ?? "",
+      daily_protein_target_g: newPhaseInput.daily_protein_target_g ?? "",
+      daily_carbs_target_g: newPhaseInput.daily_carbs_target_g ?? "",
+      daily_fat_target_g: newPhaseInput.daily_fat_target_g ?? "",
+      daily_sugar_target_g: newPhaseInput.daily_sugar_target_g ?? "",
+      daily_water_target_ml: newPhaseInput.daily_water_target_ml ?? "",
+      weekly_workout_target: newPhaseInput.weekly_workout_target ?? "",
+      weekly_workout_hours_target: newPhaseInput.weekly_workout_hours_target ?? "",
+      target_weight_kg: newPhaseInput.target_weight_kg ?? "",
+      target_weight_change_kg_per_week: newPhaseInput.target_weight_change_kg_per_week ?? "",
+    },
+  });
 
-  if (e2 || !created) {
-    // Compensate: convert old phase from 'superseded' (broken lineage —
-    // implies a successor that doesn't exist) to 'ended' (terminal, no
-    // successor). The user lands in companion mode rather than a confusing
-    // state with a phantom successor.
-    const { error: revertErr } = await supabase
-      .from("phases")
-      .update({ status: "ended" })
-      .eq("id", oldPhaseId)
-      .eq("user_id", userId);
-    if (revertErr) {
-      console.error("[pivotPhase] compensating revert failed", revertErr);
-    }
-    throw new ValidationError(
-      `New phase couldn't be created (${e2?.message ?? "unknown error"}). Your current phase has been ended without a successor — you can start a new phase from companion mode.`,
-    );
+  if (rpcErr) {
+    // The RPC raises typed errors — surface them as ValidationError so the
+    // route handler turns them into 400s rather than 500s.
+    throw new ValidationError(rpcErr.message);
   }
 
-  // 4. Patch old phase's superseded_by_phase_id pointer.
-  const { error: e3 } = await supabase
-    .from("phases")
-    .update({ superseded_by_phase_id: (created as Phase).id })
-    .eq("id", oldPhaseId)
-    .eq("user_id", userId);
-  if (e3) {
-    // Non-fatal — the lineage pointer is purely for UI history rendering.
-    // Log via console.error so it shows in Sentry but the user gets success.
-    console.error("[pivotPhase] failed to set superseded_by_phase_id", e3);
-  }
+  const ids = (rpcResult as { old_phase_id: string; new_phase_id: string }[])?.[0];
+  if (!ids) throw new NotFoundError("Pivot result");
 
-  return {
-    oldPhase: oldUpdated as Phase,
-    newPhase: created as Phase,
-  };
+  // Read both phases back — needed because the RPC only returns IDs.
+  const [oldPhase, newPhase] = await Promise.all([
+    getPhase(supabase, userId, ids.old_phase_id),
+    getPhase(supabase, userId, ids.new_phase_id),
+  ]);
+  return { oldPhase, newPhase };
 }

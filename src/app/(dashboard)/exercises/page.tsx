@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useToast } from "@/components/ui/Toast";
 import {
   useArchiveExercise,
   useExercises,
@@ -43,6 +44,7 @@ export default function ExercisesPage() {
 
   const archive = useArchiveExercise();
   const restore = useRestoreExercise();
+  const toast = useToast();
 
   // Apply the tab filter on top of the server result. The server already
   // limits visibility (system + caller's customs), so "mine" just narrows
@@ -56,22 +58,20 @@ export default function ExercisesPage() {
     });
   }, [rows, tab]);
 
-  function handleArchive(ex: Exercise) {
-    if (
-      !window.confirm(
-        `Archive "${ex.name}"? Historical workouts that reference it stay intact, and you can restore it later.`,
-      )
-    ) {
-      return;
-    }
+  async function handleArchive(ex: Exercise) {
+    const ok = await toast.confirm(
+      `Archive "${ex.name}"? Historical workouts that reference it stay intact, and you can restore it later.`,
+      "Archive",
+    );
+    if (!ok) return;
     archive.mutate(ex.id, {
-      onError: () => window.alert("Failed to archive. Please try again."),
+      onError: () => toast.error("Failed to archive. Please try again."),
     });
   }
 
   function handleRestore(ex: Exercise) {
     restore.mutate(ex.id, {
-      onError: () => window.alert("Failed to restore. Please try again."),
+      onError: () => toast.error("Failed to restore. Please try again."),
     });
   }
 

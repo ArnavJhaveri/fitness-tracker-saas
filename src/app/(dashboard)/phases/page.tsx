@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useToast } from "@/components/ui/Toast";
 import { PhaseForm } from "@/features/phases/components/PhaseForm";
 import { PhaseProgressCard } from "@/features/phases/components/PhaseProgressCard";
 import {
@@ -46,6 +47,7 @@ export default function PhasesPage() {
   const create = useCreatePhase();
   const pivot = usePivotPhase();
   const end = useEndPhase();
+  const toast = useToast();
 
   // Group phases by status. The active phase is rendered separately above
   // (via PhaseProgressCard) so we filter it out of the history list.
@@ -70,17 +72,18 @@ export default function PhasesPage() {
     setMode("list");
   }
 
-  function handleEnd(phase: Phase) {
-    if (
-      !window.confirm(
-        `End "${phase.name}"? You'll drop into companion mode (no daily targets) until you start a new phase.`,
-      )
-    ) {
-      return;
-    }
+  async function handleEnd(phase: Phase) {
+    const ok = await toast.confirm(
+      `End "${phase.name}"? You'll drop into companion mode (no daily targets) until you start a new phase.`,
+      "End phase",
+    );
+    if (!ok) return;
     end.mutate(
       { id: phase.id },
-      { onError: () => window.alert("Failed to end phase. Please try again.") },
+      {
+        onSuccess: () => toast.success("Phase ended. Welcome to companion mode."),
+        onError: () => toast.error("Failed to end phase. Please try again."),
+      },
     );
   }
 

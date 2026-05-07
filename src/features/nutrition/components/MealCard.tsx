@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 import { getMealTypeMeta } from "@/lib/registry/meal-types";
 import type { Meal, MealItem, FoodItem } from "@/types/database";
 import { useDeleteMeal, useDeleteMealItem } from "../hooks/useNutrition";
@@ -27,6 +28,7 @@ interface Props {
  */
 export function MealCard({ meal }: Props) {
   const [expanded, setExpanded] = useState(true);
+  const toast = useToast();
 
   const { mutate: deleteMeal } = useDeleteMeal();
   const { mutate: deleteItem } = useDeleteMealItem();
@@ -34,10 +36,14 @@ export function MealCard({ meal }: Props) {
   const items = meal.meal_items ?? [];
   const macros = calcMealMacros(items);
 
-  function handleDeleteMeal() {
-    if (!window.confirm("Delete this meal and all its items? This cannot be undone.")) return;
+  async function handleDeleteMeal() {
+    const ok = await toast.confirm(
+      "Delete this meal and all its items? This cannot be undone.",
+      "Delete",
+    );
+    if (!ok) return;
     deleteMeal(meal.id, {
-      onError: () => window.alert("Failed to delete meal. Please try again."),
+      onError: () => toast.error("Failed to delete meal. Please try again."),
     });
   }
 
@@ -121,8 +127,7 @@ export function MealCard({ meal }: Props) {
                     deleteItem(
                       { mealId: meal.id, itemId: item.id },
                       {
-                        onError: () =>
-                          window.alert("Failed to remove food item. Please try again."),
+                        onError: () => toast.error("Failed to remove food item. Please try again."),
                       },
                     )
                   }

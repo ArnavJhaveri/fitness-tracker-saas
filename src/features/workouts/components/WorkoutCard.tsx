@@ -1,6 +1,7 @@
 "use client";
 
 import { Trash2, ChevronRight, Clock, Dumbbell } from "lucide-react";
+import { useToast } from "@/components/ui/Toast";
 import type { WorkoutSession } from "@/types/database";
 import { useDeleteWorkout } from "../hooks/useWorkouts";
 
@@ -11,12 +12,13 @@ interface Props {
 
 export function WorkoutCard({ session, onClick }: Props) {
   const { mutate: deleteSession } = useDeleteWorkout();
+  const toast = useToast();
 
-  function handleDelete() {
-    if (!window.confirm(`Delete "${session.name}"? This cannot be undone.`)) return;
+  async function handleDelete() {
+    const ok = await toast.confirm(`Delete "${session.name}"? This cannot be undone.`, "Delete");
+    if (!ok) return;
     deleteSession(session.id, {
-      onError: () =>
-        window.alert("Failed to delete workout. Please try again or refresh the page."),
+      onError: () => toast.error("Failed to delete workout. Please try again or refresh the page."),
     });
   }
 
