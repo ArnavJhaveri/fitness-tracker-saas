@@ -11,7 +11,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { dateRangeSchema } from "@/lib/validations";
 import { parseSearchParams } from "@/lib/validations/shared";
 import { getDailySummary } from "@/lib/db/analytics";
@@ -20,13 +20,13 @@ import type { DailySummary } from "@/types/database";
 
 export async function GET(request: NextRequest) {
   try {
-    await enforceRateLimit("api:analytics:daily:get", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:analytics:daily:get", apiLimiter, user.id);
 
     const { from, to } = parseSearchParams(
       Object.fromEntries(request.nextUrl.searchParams),

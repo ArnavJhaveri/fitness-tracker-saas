@@ -7,7 +7,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { createGoalSchema, paginationSchema } from "@/lib/validations";
 import { parseRequestBody, parseSearchParams } from "@/lib/validations/shared";
 import { listGoals, createGoal } from "@/lib/db/goals";
@@ -20,13 +20,13 @@ const listQuerySchema = paginationSchema.extend({
 
 export async function GET(request: NextRequest) {
   try {
-    await enforceRateLimit("api:goals:get", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:goals:get", apiLimiter, user.id);
 
     const params = parseSearchParams(
       Object.fromEntries(request.nextUrl.searchParams),
@@ -52,13 +52,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await enforceRateLimit("api:goals:post", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:goals:post", apiLimiter, user.id);
 
     const body = await parseRequestBody(request, createGoalSchema);
     const goal = await createGoal(supabase, user.id, body);

@@ -15,7 +15,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import type { ApiSuccess } from "@/types/api";
 import type { FoodItem } from "@/types/database";
 
@@ -25,13 +25,13 @@ const DEDUPED_CAP = 12;
 
 export async function GET(_req: NextRequest) {
   try {
-    await enforceRateLimit("api:nutrition:recent-foods", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:nutrition:recent-foods", apiLimiter, user.id);
 
     const since = new Date(Date.now() - LOOKBACK_DAYS * 86_400_000).toISOString();
 

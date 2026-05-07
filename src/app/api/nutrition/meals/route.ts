@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { createMealSchema, paginationSchema, dateRangeSchema } from "@/lib/validations";
 import { parseRequestBody, parseSearchParams } from "@/lib/validations/shared";
 import { listMeals, createMeal } from "@/lib/db/nutrition";
@@ -17,13 +17,13 @@ const listQuerySchema = paginationSchema.merge(dateRangeSchema);
 
 export async function GET(request: NextRequest) {
   try {
-    await enforceRateLimit("api:nutrition:meals:get", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:nutrition:meals:get", apiLimiter, user.id);
 
     const params = parseSearchParams(
       Object.fromEntries(request.nextUrl.searchParams),
@@ -49,13 +49,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await enforceRateLimit("api:nutrition:meals:post", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:nutrition:meals:post", apiLimiter, user.id);
 
     const body = await parseRequestBody(request, createMealSchema);
     const meal = await createMeal(supabase, user.id, body);

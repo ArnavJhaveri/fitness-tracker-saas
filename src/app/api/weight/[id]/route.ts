@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { updateWeightEntrySchema } from "@/lib/validations";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { updateWeightEntry, deleteWeightEntry } from "@/lib/db/health";
@@ -17,7 +17,6 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:weight:put", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -25,6 +24,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:weight:put", apiLimiter, user.id);
 
     const body = await parseRequestBody(req, updateWeightEntrySchema);
     const entry = await updateWeightEntry(supabase, user.id, id, body);
@@ -36,7 +37,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:weight:delete", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -44,6 +44,8 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:weight:delete", apiLimiter, user.id);
 
     await deleteWeightEntry(supabase, user.id, id);
     return new NextResponse(null, { status: 204 });

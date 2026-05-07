@@ -10,7 +10,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { updateExerciseSchema } from "@/lib/validations";
 import { archiveCustomExercise, getExercise, updateCustomExercise } from "@/lib/db/exercises";
@@ -22,7 +22,6 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:exercises:detail:get", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -30,6 +29,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:exercises:detail:get", apiLimiter, user.id);
 
     // RLS allows reads for system rows + caller's customs. Anything else
     // surfaces as NotFoundError via .single().
@@ -42,7 +43,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:exercises:detail:patch", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -50,6 +50,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:exercises:detail:patch", apiLimiter, user.id);
 
     const body = await parseRequestBody(req, updateExerciseSchema);
     const exercise = await updateCustomExercise(supabase, user.id, id, body);
@@ -62,7 +64,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:exercises:detail:delete", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -70,6 +71,8 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:exercises:detail:delete", apiLimiter, user.id);
 
     // Soft delete — archive only. The DB-layer helper rejects attempts to
     // archive system exercises with a clean ValidationError.

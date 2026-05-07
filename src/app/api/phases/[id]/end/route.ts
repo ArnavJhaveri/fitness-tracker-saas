@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { endPhaseSchema } from "@/lib/validations";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { endPhase } from "@/lib/db/phases";
@@ -18,7 +18,6 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:phases:end", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -26,6 +25,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:phases:end", apiLimiter, user.id);
 
     const body = await parseRequestBody(req, endPhaseSchema);
     const phase = await endPhase(supabase, user.id, id, body.actual_end_date);

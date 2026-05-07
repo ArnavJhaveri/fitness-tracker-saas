@@ -9,7 +9,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { pivotPhaseSchema } from "@/lib/validations";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { pivotPhase } from "@/lib/db/phases";
@@ -21,7 +21,6 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:phases:pivot", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -29,6 +28,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:phases:pivot", apiLimiter, user.id);
 
     const body = await parseRequestBody(req, pivotPhaseSchema);
     const result = await pivotPhase(supabase, user.id, id, body.new_phase);

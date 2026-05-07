@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { addExerciseToWorkoutSchema } from "@/lib/validations";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { addExerciseToSession, getWorkoutSession } from "@/lib/db/workouts";
@@ -15,7 +15,6 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:workouts:exercises:post", apiLimiter);
     const { id: sessionId } = await params;
 
     const supabase = await createClient();
@@ -23,6 +22,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:workouts:exercises:post", apiLimiter, user.id);
 
     // Verify the session belongs to this user before inserting (defence-in-depth
     // on top of RLS — getWorkoutSession throws NotFoundError if it doesn't)

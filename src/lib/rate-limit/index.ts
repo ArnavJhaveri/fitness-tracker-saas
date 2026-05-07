@@ -138,27 +138,63 @@ async function checkRateLimit(key: string, config: RateLimitConfig): Promise<Rat
   return checkLocal(key, config);
 }
 
-// ─── Route-handler helper (signature unchanged) ───────────────────────────────
+// ─── Route-handler helpers ───────────────────────────────────────────────────
 
 /**
- * Reads the request IP from Next.js headers and enforces the given limiter.
- * Throws RateLimitError if the limit is exceeded.
+ * Resolve the client IP from request headers. Used for unauthenticated
+ * endpoints (login, register, password reset) where there's no user_id yet.
  *
- * Call sites are unchanged — this is a drop-in replacement.
+ * x-real-ip is a single, trusted header set by reverse proxies (nginx, Vercel).
+ * When it's absent, fall back to the LAST entry in x-forwarded-for — the IP
+ * most recently appended by the load balancer — rather than the first entry,
+ * which is supplied by the client and can be spoofed.
  */
-export async function enforceRateLimit(prefix: string, config: RateLimitConfig): Promise<void> {
+async function resolveClientIp(): Promise<string> {
   const headerStore = await headers();
-
-  // x-real-ip is a single, trusted header set by reverse proxies (nginx, Vercel).
-  // When it is absent, fall back to the LAST entry in x-forwarded-for — the IP
-  // most recently appended by the load balancer — rather than the first entry,
-  // which is supplied by the client and can be spoofed.
   const xff = headerStore.get("x-forwarded-for");
   const lastXff = xff ? xff.split(",").at(-1)?.trim() : undefined;
-  const ip = headerStore.get("x-real-ip") ?? lastXff ?? "unknown";
+  return headerStore.get("x-real-ip") ?? lastXff ?? "unknown";
+}
 
-  const result = await checkRateLimit(`${prefix}:${ip}`, config);
+/**
+ * Enforce a rate limit on an UNAUTHENTICATED route. Keys by IP address.
+ *
+ * Use this for /auth/* routes and any other endpoint where there's no
+ * `user_id` yet. For authenticated endpoints, prefer `enforceUserRateLimit`
+ * — IP keying lumps every user behind the same NAT (corporate office,
+ * carrier-grade NAT) into a shared bucket.
+ *
+ * The signature stays the same as before for drop-in compatibility with
+ * pre-existing call sites that aren't yet user-aware.
+ */
+export async function enforceRateLimit(prefix: string, config: RateLimitConfig): Promise<void> {
+  const ip = await resolveClientIp();
+  const result = await checkRateLimit(`${prefix}:ip:${ip}`, config);
+  if (!result.allowed) {
+    throw new RateLimitError();
+  }
+}
 
+/**
+ * Enforce a rate limit on an AUTHENTICATED route. Keys by user_id, with
+ * the client IP as a SECONDARY key qualifier so a compromised account
+ * can't be used to mount a much-higher-volume attack from many machines.
+ *
+ * Why both: pure user_id keying lets an attacker who steals one user's
+ * cookie spread the load across many IPs. Pure IP keying punishes legit
+ * users sharing a NAT. Combining both ("the same user from the same IP")
+ * gives each user their own quota in their normal usage, while making
+ * cookie-replay attacks self-throttling.
+ *
+ * Pass the user.id resolved by `supabase.auth.getUser()` in the route.
+ */
+export async function enforceUserRateLimit(
+  prefix: string,
+  config: RateLimitConfig,
+  userId: string,
+): Promise<void> {
+  const ip = await resolveClientIp();
+  const result = await checkRateLimit(`${prefix}:user:${userId}:${ip}`, config);
   if (!result.allowed) {
     throw new RateLimitError();
   }

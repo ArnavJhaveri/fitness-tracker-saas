@@ -7,7 +7,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { parseRequestBody, parseSearchParams } from "@/lib/validations/shared";
 import { createExerciseSchema } from "@/lib/validations";
 import { createCustomExercise, searchExercises } from "@/lib/db/exercises";
@@ -29,13 +29,13 @@ const querySchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    await enforceRateLimit("api:exercises:get", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:exercises:get", apiLimiter, user.id);
 
     const params = parseSearchParams(Object.fromEntries(request.nextUrl.searchParams), querySchema);
 
@@ -66,13 +66,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await enforceRateLimit("api:exercises:post", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:exercises:post", apiLimiter, user.id);
 
     const body = await parseRequestBody(request, createExerciseSchema);
     const exercise = await createCustomExercise(supabase, user.id, body);

@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { updateMealSchema } from "@/lib/validations";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { getMeal, updateMeal, deleteMeal } from "@/lib/db/nutrition";
@@ -17,7 +17,6 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:nutrition:meals:get", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -25,6 +24,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:nutrition:meals:get", apiLimiter, user.id);
 
     const meal = await getMeal(supabase, user.id, id);
     return NextResponse.json<ApiSuccess<typeof meal>>({ success: true, data: meal });
@@ -35,7 +36,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:nutrition:meals:put", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -43,6 +43,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:nutrition:meals:put", apiLimiter, user.id);
 
     const body = await parseRequestBody(req, updateMealSchema);
     const meal = await updateMeal(supabase, user.id, id, body);
@@ -54,7 +56,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:nutrition:meals:delete", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -62,6 +63,8 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:nutrition:meals:delete", apiLimiter, user.id);
 
     await deleteMeal(supabase, user.id, id);
     return new NextResponse(null, { status: 204 });

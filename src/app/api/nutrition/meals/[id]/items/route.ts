@@ -10,7 +10,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError, ValidationError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { addMealItemSchema } from "@/lib/validations";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { addMealItem, deleteMealItem } from "@/lib/db/nutrition";
@@ -20,7 +20,6 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:nutrition:meal-items:post", apiLimiter);
     const { id: mealId } = await params;
 
     const supabase = await createClient();
@@ -28,6 +27,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:nutrition:meal-items:post", apiLimiter, user.id);
 
     const body = await parseRequestBody(req, addMealItemSchema);
     // addMealItem verifies meal ownership before inserting
@@ -44,13 +45,13 @@ export async function POST(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params: _params }: Params) {
   try {
-    await enforceRateLimit("api:nutrition:meal-items:delete", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:nutrition:meal-items:delete", apiLimiter, user.id);
 
     const itemId = req.nextUrl.searchParams.get("item_id");
     const parsed = z.string().uuid().safeParse(itemId);

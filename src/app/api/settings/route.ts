@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { updateSettingsSchema } from "@/lib/validations/settings";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { getSettings, upsertSettings } from "@/lib/db/settings";
@@ -15,13 +15,13 @@ import type { UserSettings } from "@/types/database";
 
 export async function GET(_req: NextRequest) {
   try {
-    await enforceRateLimit("api:settings:get", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:settings:get", apiLimiter, user.id);
 
     const settings = await getSettings(supabase, user.id);
     return NextResponse.json<ApiSuccess<UserSettings>>({ success: true, data: settings });
@@ -32,13 +32,13 @@ export async function GET(_req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    await enforceRateLimit("api:settings:put", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:settings:put", apiLimiter, user.id);
 
     const body = await parseRequestBody(req, updateSettingsSchema);
     const settings = await upsertSettings(supabase, user.id, body);

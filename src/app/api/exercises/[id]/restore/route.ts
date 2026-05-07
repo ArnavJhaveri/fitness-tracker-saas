@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { restoreCustomExercise } from "@/lib/db/exercises";
 import { logger } from "@/lib/logger";
 import type { ApiSuccess } from "@/types/api";
@@ -15,7 +15,6 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function POST(_req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:exercises:restore", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -23,6 +22,8 @@ export async function POST(_req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:exercises:restore", apiLimiter, user.id);
 
     const exercise = await restoreCustomExercise(supabase, user.id, id);
     logger.info("Custom exercise restored", { userId: user.id, exerciseId: id });

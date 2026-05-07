@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { updateSetSchema } from "@/lib/validations";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { updateSet, deleteSet, getWorkoutSession } from "@/lib/db/workouts";
@@ -16,7 +16,6 @@ type Params = { params: Promise<{ id: string; exerciseId: string; setId: string 
 
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:workouts:sets:put", apiLimiter);
     const { id: sessionId, exerciseId, setId } = await params;
 
     const supabase = await createClient();
@@ -24,6 +23,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:workouts:sets:put", apiLimiter, user.id);
 
     // Verify the parent session belongs to this user before mutating the set.
     // Also pass exerciseId so the DB layer scopes the update to the correct exercise.
@@ -38,7 +39,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:workouts:sets:delete", apiLimiter);
     const { id: sessionId, exerciseId, setId } = await params;
 
     const supabase = await createClient();
@@ -46,6 +46,8 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:workouts:sets:delete", apiLimiter, user.id);
 
     // Verify the parent session belongs to this user before deleting the set.
     // Also pass exerciseId so the DB layer scopes the delete to the correct exercise.

@@ -10,7 +10,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { createPhaseSchema } from "@/lib/validations";
 import { parseRequestBody, parseSearchParams } from "@/lib/validations/shared";
 import { listPhases, createPhase } from "@/lib/db/phases";
@@ -25,13 +25,13 @@ const listQuerySchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    await enforceRateLimit("api:phases:get", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:phases:get", apiLimiter, user.id);
 
     const params = parseSearchParams(
       Object.fromEntries(request.nextUrl.searchParams),
@@ -47,13 +47,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await enforceRateLimit("api:phases:post", apiLimiter);
-
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:phases:post", apiLimiter, user.id);
 
     const body = await parseRequestBody(request, createPhaseSchema);
     const phase = await createPhase(supabase, user.id, body);

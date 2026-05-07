@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
 import { updateWorkoutSessionSchema } from "@/lib/validations";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { getWorkoutSession, updateWorkoutSession, deleteWorkoutSession } from "@/lib/db/workouts";
@@ -17,7 +17,6 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:workouts:get", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -25,6 +24,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:workouts:get", apiLimiter, user.id);
 
     const session = await getWorkoutSession(supabase, user.id, id);
     return NextResponse.json<ApiSuccess<typeof session>>({ success: true, data: session });
@@ -35,7 +36,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:workouts:put", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -43,6 +43,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:workouts:put", apiLimiter, user.id);
 
     const body = await parseRequestBody(req, updateWorkoutSessionSchema);
     const session = await updateWorkoutSession(supabase, user.id, id, body);
@@ -54,7 +56,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    await enforceRateLimit("api:workouts:delete", apiLimiter);
     const { id } = await params;
 
     const supabase = await createClient();
@@ -62,6 +63,8 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new UnauthorizedError();
+
+    await enforceUserRateLimit("api:workouts:delete", apiLimiter, user.id);
 
     await deleteWorkoutSession(supabase, user.id, id);
     return new NextResponse(null, { status: 204 });
