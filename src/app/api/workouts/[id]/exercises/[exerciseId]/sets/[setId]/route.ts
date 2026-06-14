@@ -3,60 +3,37 @@
  * DELETE /api/workouts/[id]/exercises/[exerciseId]/sets/[setId] — delete a set
  */
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { withAuth } from "@/lib/api/with-auth";
 import { updateSetSchema } from "@/lib/validations";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { updateSet, deleteSet, getWorkoutSession } from "@/lib/db/workouts";
 import type { ApiSuccess } from "@/types/api";
 
-type Params = { params: Promise<{ id: string; exerciseId: string; setId: string }> };
-
-export async function PUT(req: NextRequest, { params }: Params) {
-  try {
-    const { id: sessionId, exerciseId, setId } = await params;
-
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
-
-    await enforceUserRateLimit("api:workouts:sets:put", apiLimiter, user.id);
+export const PUT = withAuth<{ id: string; exerciseId: string; setId: string }>(
+  "api:workouts:sets:put",
+  async ({ supabase, user, request, params }) => {
+    const { id: sessionId, exerciseId, setId } = params;
 
     // Verify the parent session belongs to this user before mutating the set.
     // Also pass exerciseId so the DB layer scopes the update to the correct exercise.
     await getWorkoutSession(supabase, user.id, sessionId);
-    const body = await parseRequestBody(req, updateSetSchema);
+    const body = await parseRequestBody(request, updateSetSchema);
     const set = await updateSet(supabase, setId, exerciseId, body);
     return NextResponse.json<ApiSuccess<typeof set>>({ success: true, data: set });
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+  },
+);
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
-  try {
-    const { id: sessionId, exerciseId, setId } = await params;
-
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
-
-    await enforceUserRateLimit("api:workouts:sets:delete", apiLimiter, user.id);
+export const DELETE = withAuth<{ id: string; exerciseId: string; setId: string }>(
+  "api:workouts:sets:delete",
+  async ({ supabase, user, params }) => {
+    const { id: sessionId, exerciseId, setId } = params;
 
     // Verify the parent session belongs to this user before deleting the set.
     // Also pass exerciseId so the DB layer scopes the delete to the correct exercise.
     await getWorkoutSession(supabase, user.id, sessionId);
     await deleteSet(supabase, setId, exerciseId);
     return new NextResponse(null, { status: 204 });
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+  },
+);
 
 export const dynamic = "force-dynamic";

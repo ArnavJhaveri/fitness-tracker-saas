@@ -4,74 +4,36 @@
  * DELETE /api/goals/[id] — delete goal
  */
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { withAuth } from "@/lib/api/with-auth";
 import { updateGoalSchema } from "@/lib/validations";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { getGoal, updateGoal, deleteGoal } from "@/lib/db/goals";
 import type { ApiSuccess } from "@/types/api";
 import type { Goal } from "@/types/database";
 
-type Params = { params: Promise<{ id: string }> };
+export const GET = withAuth<{ id: string }>("api:goals:get", async ({ supabase, user, params }) => {
+  const { id } = params;
+  const goal = await getGoal(supabase, user.id, id);
+  return NextResponse.json<ApiSuccess<Goal>>({ success: true, data: goal });
+});
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  try {
-    const { id } = await params;
-
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
-
-    await enforceUserRateLimit("api:goals:get", apiLimiter, user.id);
-
-    const goal = await getGoal(supabase, user.id, id);
-    return NextResponse.json<ApiSuccess<Goal>>({ success: true, data: goal });
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
-
-export async function PUT(req: NextRequest, { params }: Params) {
-  try {
-    const { id } = await params;
-
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
-
-    await enforceUserRateLimit("api:goals:put", apiLimiter, user.id);
-
-    const body = await parseRequestBody(req, updateGoalSchema);
+export const PUT = withAuth<{ id: string }>(
+  "api:goals:put",
+  async ({ supabase, user, request, params }) => {
+    const { id } = params;
+    const body = await parseRequestBody(request, updateGoalSchema);
     const goal = await updateGoal(supabase, user.id, id, body);
     return NextResponse.json<ApiSuccess<Goal>>({ success: true, data: goal });
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+  },
+);
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
-  try {
-    const { id } = await params;
-
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
-
-    await enforceUserRateLimit("api:goals:delete", apiLimiter, user.id);
-
+export const DELETE = withAuth<{ id: string }>(
+  "api:goals:delete",
+  async ({ supabase, user, params }) => {
+    const { id } = params;
     await deleteGoal(supabase, user.id, id);
     return new NextResponse(null, { status: 204 });
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+  },
+);
 
 export const dynamic = "force-dynamic";

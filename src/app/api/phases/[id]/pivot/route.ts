@@ -6,10 +6,7 @@
  * the cut-over day onwards resolves to the NEW phase.
  */
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { withAuth } from "@/lib/api/with-auth";
 import { pivotPhaseSchema } from "@/lib/validations";
 import { parseRequestBody } from "@/lib/validations/shared";
 import { pivotPhase } from "@/lib/db/phases";
@@ -17,21 +14,11 @@ import { logger } from "@/lib/logger";
 import type { ApiSuccess } from "@/types/api";
 import type { Phase } from "@/types/database";
 
-type Params = { params: Promise<{ id: string }> };
-
-export async function POST(req: NextRequest, { params }: Params) {
-  try {
-    const { id } = await params;
-
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
-
-    await enforceUserRateLimit("api:phases:pivot", apiLimiter, user.id);
-
-    const body = await parseRequestBody(req, pivotPhaseSchema);
+export const POST = withAuth<{ id: string }>(
+  "api:phases:pivot",
+  async ({ supabase, user, request, params }) => {
+    const { id } = params;
+    const body = await parseRequestBody(request, pivotPhaseSchema);
     const result = await pivotPhase(supabase, user.id, id, body.new_phase);
 
     logger.info("Phase pivoted", {
@@ -45,9 +32,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       { success: true, data: result },
       { status: 201 },
     );
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+  },
+);
 
 export const dynamic = "force-dynamic";

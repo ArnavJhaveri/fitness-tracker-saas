@@ -8,46 +8,31 @@
  * Used by the dashboard overview and the analytics page charts.
  */
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { withAuth } from "@/lib/api/with-auth";
 import { dateRangeSchema } from "@/lib/validations";
 import { parseSearchParams } from "@/lib/validations/shared";
 import { getDailySummary } from "@/lib/db/analytics";
 import type { ApiSuccess } from "@/types/api";
 import type { DailySummary } from "@/types/database";
 
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
+export const GET = withAuth("api:analytics:daily:get", async ({ supabase, user, request }) => {
+  const { from, to } = parseSearchParams(
+    Object.fromEntries(request.nextUrl.searchParams),
+    dateRangeSchema,
+  );
 
-    await enforceUserRateLimit("api:analytics:daily:get", apiLimiter, user.id);
+  const data = await getDailySummary(supabase, user.id, from, to);
 
-    const { from, to } = parseSearchParams(
-      Object.fromEntries(request.nextUrl.searchParams),
-      dateRangeSchema,
-    );
-
-    const data = await getDailySummary(supabase, user.id, from, to);
-
-    return NextResponse.json<ApiSuccess<DailySummary[]>>({
-      success: true,
-      data,
-      meta: {
-        page: 1,
-        per_page: data.length,
-        total: data.length,
-        total_pages: 1,
-      },
-    });
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+  return NextResponse.json<ApiSuccess<DailySummary[]>>({
+    success: true,
+    data,
+    meta: {
+      page: 1,
+      per_page: data.length,
+      total: data.length,
+      total_pages: 1,
+    },
+  });
+});
 
 export const dynamic = "force-dynamic";

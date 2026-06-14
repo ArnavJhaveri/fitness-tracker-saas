@@ -3,11 +3,8 @@
  * POST /api/exercises — create a new custom exercise
  */
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
-import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { withAuth } from "@/lib/api/with-auth";
 import { parseRequestBody, parseSearchParams } from "@/lib/validations/shared";
 import { createExerciseSchema } from "@/lib/validations";
 import { createCustomExercise, searchExercises } from "@/lib/db/exercises";
@@ -27,69 +24,45 @@ const querySchema = z.object({
     .transform((v) => v === "true"),
 });
 
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
+export const GET = withAuth("api:exercises:get", async ({ supabase, user, request }) => {
+  const params = parseSearchParams(Object.fromEntries(request.nextUrl.searchParams), querySchema);
 
-    await enforceUserRateLimit("api:exercises:get", apiLimiter, user.id);
+  const { data, count } = await searchExercises(supabase, {
+    q: params.q,
+    category: params.category,
+    muscle: params.muscle,
+    page: params.page,
+    per_page: params.per_page,
+    userId: user.id,
+    includeArchived: params.include_archived,
+  });
 
-    const params = parseSearchParams(Object.fromEntries(request.nextUrl.searchParams), querySchema);
-
-    const { data, count } = await searchExercises(supabase, {
-      q: params.q,
-      category: params.category,
-      muscle: params.muscle,
+  return NextResponse.json<ApiSuccess<Exercise[]>>({
+    success: true,
+    data,
+    meta: {
       page: params.page,
       per_page: params.per_page,
-      userId: user.id,
-      includeArchived: params.include_archived,
-    });
+      total: count,
+      total_pages: Math.ceil(count / params.per_page),
+    },
+  });
+});
 
-    return NextResponse.json<ApiSuccess<Exercise[]>>({
-      success: true,
-      data,
-      meta: {
-        page: params.page,
-        per_page: params.per_page,
-        total: count,
-        total_pages: Math.ceil(count / params.per_page),
-      },
-    });
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+export const POST = withAuth("api:exercises:post", async ({ supabase, user, request }) => {
+  const body = await parseRequestBody(request, createExerciseSchema);
+  const exercise = await createCustomExercise(supabase, user.id, body);
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
+  logger.info("Custom exercise created", {
+    userId: user.id,
+    exerciseId: exercise.id,
+    category: exercise.category,
+  });
 
-    await enforceUserRateLimit("api:exercises:post", apiLimiter, user.id);
-
-    const body = await parseRequestBody(request, createExerciseSchema);
-    const exercise = await createCustomExercise(supabase, user.id, body);
-
-    logger.info("Custom exercise created", {
-      userId: user.id,
-      exerciseId: exercise.id,
-      category: exercise.category,
-    });
-
-    return NextResponse.json<ApiSuccess<Exercise>>(
-      { success: true, data: exercise },
-      { status: 201 },
-    );
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+  return NextResponse.json<ApiSuccess<Exercise>>(
+    { success: true, data: exercise },
+    { status: 201 },
+  );
+});
 
 export const dynamic = "force-dynamic";

@@ -3,10 +3,7 @@
  * POST /api/nutrition/meals — create a meal
  */
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { withAuth } from "@/lib/api/with-auth";
 import { createMealSchema, paginationSchema, dateRangeSchema } from "@/lib/validations";
 import { parseRequestBody, parseSearchParams } from "@/lib/validations/shared";
 import { listMeals, createMeal } from "@/lib/db/nutrition";
@@ -15,55 +12,31 @@ import type { Meal } from "@/types/database";
 
 const listQuerySchema = paginationSchema.merge(dateRangeSchema);
 
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
+export const GET = withAuth("api:nutrition:meals:get", async ({ supabase, user, request }) => {
+  const params = parseSearchParams(
+    Object.fromEntries(request.nextUrl.searchParams),
+    listQuerySchema,
+  );
 
-    await enforceUserRateLimit("api:nutrition:meals:get", apiLimiter, user.id);
+  const { data, count } = await listMeals(supabase, user.id, params);
 
-    const params = parseSearchParams(
-      Object.fromEntries(request.nextUrl.searchParams),
-      listQuerySchema,
-    );
+  return NextResponse.json<ApiSuccess<Meal[]>>({
+    success: true,
+    data,
+    meta: {
+      page: params.page,
+      per_page: params.per_page,
+      total: count,
+      total_pages: Math.ceil(count / params.per_page),
+    },
+  });
+});
 
-    const { data, count } = await listMeals(supabase, user.id, params);
+export const POST = withAuth("api:nutrition:meals:post", async ({ supabase, user, request }) => {
+  const body = await parseRequestBody(request, createMealSchema);
+  const meal = await createMeal(supabase, user.id, body);
 
-    return NextResponse.json<ApiSuccess<Meal[]>>({
-      success: true,
-      data,
-      meta: {
-        page: params.page,
-        per_page: params.per_page,
-        total: count,
-        total_pages: Math.ceil(count / params.per_page),
-      },
-    });
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
-
-    await enforceUserRateLimit("api:nutrition:meals:post", apiLimiter, user.id);
-
-    const body = await parseRequestBody(request, createMealSchema);
-    const meal = await createMeal(supabase, user.id, body);
-
-    return NextResponse.json<ApiSuccess<Meal>>({ success: true, data: meal }, { status: 201 });
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+  return NextResponse.json<ApiSuccess<Meal>>({ success: true, data: meal }, { status: 201 });
+});
 
 export const dynamic = "force-dynamic";

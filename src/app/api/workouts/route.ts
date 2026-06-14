@@ -12,10 +12,7 @@
  *   6. Catch-all error handler → consistent error envelope
  */
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { withAuth } from "@/lib/api/with-auth";
 import { createWorkoutSessionSchema, paginationSchema, dateRangeSchema } from "@/lib/validations";
 import { parseRequestBody, parseSearchParams } from "@/lib/validations/shared";
 import { logger } from "@/lib/logger";
@@ -25,63 +22,39 @@ import type { WorkoutSession } from "@/types/database";
 
 const listQuerySchema = paginationSchema.merge(dateRangeSchema);
 
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
+export const GET = withAuth("api:workouts:get", async ({ supabase, user, request }) => {
+  const params = parseSearchParams(
+    Object.fromEntries(request.nextUrl.searchParams),
+    listQuerySchema,
+  );
 
-    await enforceUserRateLimit("api:workouts:get", apiLimiter, user.id);
+  // Delegate to the DB layer — keeps the route handler as a thin HTTP adapter
+  // and avoids duplicating query logic that already lives in listWorkoutSessions.
+  const { data, count } = await listWorkoutSessions(supabase, user.id, params);
 
-    const params = parseSearchParams(
-      Object.fromEntries(request.nextUrl.searchParams),
-      listQuerySchema,
-    );
+  const response: ApiSuccess<WorkoutSession[]> = {
+    success: true,
+    data,
+    meta: {
+      page: params.page,
+      per_page: params.per_page,
+      total: count,
+      total_pages: Math.ceil(count / params.per_page),
+    },
+  };
 
-    // Delegate to the DB layer — keeps the route handler as a thin HTTP adapter
-    // and avoids duplicating query logic that already lives in listWorkoutSessions.
-    const { data, count } = await listWorkoutSessions(supabase, user.id, params);
+  return NextResponse.json(response);
+});
 
-    const response: ApiSuccess<WorkoutSession[]> = {
-      success: true,
-      data,
-      meta: {
-        page: params.page,
-        per_page: params.per_page,
-        total: count,
-        total_pages: Math.ceil(count / params.per_page),
-      },
-    };
+export const POST = withAuth("api:workouts:post", async ({ supabase, user, request }) => {
+  const body = await parseRequestBody(request, createWorkoutSessionSchema);
+  const session = await createWorkoutSession(supabase, user.id, body);
 
-    return NextResponse.json(response);
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+  logger.info("Workout session created", { userId: user.id, sessionId: session.id });
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
-
-    await enforceUserRateLimit("api:workouts:post", apiLimiter, user.id);
-
-    const body = await parseRequestBody(request, createWorkoutSessionSchema);
-    const session = await createWorkoutSession(supabase, user.id, body);
-
-    logger.info("Workout session created", { userId: user.id, sessionId: session.id });
-
-    const response: ApiSuccess<WorkoutSession> = { success: true, data: session };
-    return NextResponse.json(response, { status: 201 });
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+  const response: ApiSuccess<WorkoutSession> = { success: true, data: session };
+  return NextResponse.json(response, { status: 201 });
+});
 
 // Make the route dynamic — never serve stale cached data for user-specific endpoints
 export const dynamic = "force-dynamic";

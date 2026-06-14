@@ -3,10 +3,7 @@
  * POST /api/water — log a water intake
  */
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { handleRouteError, UnauthorizedError } from "@/lib/errors";
-import { enforceUserRateLimit, apiLimiter } from "@/lib/rate-limit";
+import { withAuth } from "@/lib/api/with-auth";
 import { createWaterEntrySchema, paginationSchema, dateRangeSchema } from "@/lib/validations";
 import { parseRequestBody, parseSearchParams } from "@/lib/validations/shared";
 import { listWaterEntries, createWaterEntry } from "@/lib/db/health";
@@ -15,58 +12,31 @@ import type { WaterEntry } from "@/types/database";
 
 const listQuerySchema = paginationSchema.merge(dateRangeSchema);
 
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
+export const GET = withAuth("api:water:get", async ({ supabase, user, request }) => {
+  const params = parseSearchParams(
+    Object.fromEntries(request.nextUrl.searchParams),
+    listQuerySchema,
+  );
 
-    await enforceUserRateLimit("api:water:get", apiLimiter, user.id);
+  const { data, count } = await listWaterEntries(supabase, user.id, params);
 
-    const params = parseSearchParams(
-      Object.fromEntries(request.nextUrl.searchParams),
-      listQuerySchema,
-    );
+  return NextResponse.json<ApiSuccess<WaterEntry[]>>({
+    success: true,
+    data,
+    meta: {
+      page: params.page,
+      per_page: params.per_page,
+      total: count,
+      total_pages: Math.ceil(count / params.per_page),
+    },
+  });
+});
 
-    const { data, count } = await listWaterEntries(supabase, user.id, params);
+export const POST = withAuth("api:water:post", async ({ supabase, user, request }) => {
+  const body = await parseRequestBody(request, createWaterEntrySchema);
+  const entry = await createWaterEntry(supabase, user.id, body);
 
-    return NextResponse.json<ApiSuccess<WaterEntry[]>>({
-      success: true,
-      data,
-      meta: {
-        page: params.page,
-        per_page: params.per_page,
-        total: count,
-        total_pages: Math.ceil(count / params.per_page),
-      },
-    });
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new UnauthorizedError();
-
-    await enforceUserRateLimit("api:water:post", apiLimiter, user.id);
-
-    const body = await parseRequestBody(request, createWaterEntrySchema);
-    const entry = await createWaterEntry(supabase, user.id, body);
-
-    return NextResponse.json<ApiSuccess<WaterEntry>>(
-      { success: true, data: entry },
-      { status: 201 },
-    );
-  } catch (err) {
-    return handleRouteError(err);
-  }
-}
+  return NextResponse.json<ApiSuccess<WaterEntry>>({ success: true, data: entry }, { status: 201 });
+});
 
 export const dynamic = "force-dynamic";
