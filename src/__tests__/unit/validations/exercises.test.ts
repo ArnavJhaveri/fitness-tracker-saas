@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { KNOWN_CATEGORIES, createExerciseSchema, updateExerciseSchema } from "@/lib/validations";
+import { createExerciseSchema, updateExerciseSchema } from "@/lib/validations";
+import { EXERCISE_CATEGORIES } from "@/lib/registry/exercise-categories";
 
 /**
  * Migration 003 dropped the DB CHECK constraint on `exercises.category`.
@@ -8,18 +9,18 @@ import { KNOWN_CATEGORIES, createExerciseSchema, updateExerciseSchema } from "@/
  * "tighten the enum back up" refactor is loud rather than silent.
  */
 describe("createExerciseSchema — category", () => {
-  it("accepts every curated KNOWN_CATEGORIES value", () => {
-    for (const c of KNOWN_CATEGORIES) {
+  it("accepts every curated EXERCISE_CATEGORIES value", () => {
+    for (const { category } of EXERCISE_CATEGORIES) {
       const r = createExerciseSchema.safeParse({
         name: "Test",
-        category: c,
+        category,
         primary_muscle_group: "chest",
       });
-      expect(r.success, `KNOWN_CATEGORIES contains ${c}`).toBe(true);
+      expect(r.success, `EXERCISE_CATEGORIES contains ${category}`).toBe(true);
     }
   });
 
-  it("accepts user-defined category strings (not in KNOWN_CATEGORIES)", () => {
+  it("accepts user-defined category strings (not in EXERCISE_CATEGORIES)", () => {
     // Examples a user might invent that the app should NOT reject.
     const userCategories = ["powerlifting", "rehab", "cycling-base", "sports-specific"];
     for (const c of userCategories) {

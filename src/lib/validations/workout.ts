@@ -1,19 +1,7 @@
 import { z } from "zod";
 import { MUSCLE_GROUP_VALUES } from "@/lib/registry/muscle-groups";
-import { EXERCISE_CATEGORIES } from "@/lib/registry/exercise-categories";
 
 const muscleGroupEnum = z.enum(MUSCLE_GROUP_VALUES);
-
-export const KNOWN_CATEGORIES = EXERCISE_CATEGORIES.map((c) => c.category) as unknown as readonly [
-  "strength",
-  "cardio",
-  "flexibility",
-  "sports",
-  "calisthenics",
-  "mobility",
-  "yoga",
-  "other",
-];
 
 // Trim BEFORE the length check so "   " (whitespace-only) is rejected. The
 // chain order matters: `.min(1).trim()` validates the raw string first, so
