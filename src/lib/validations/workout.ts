@@ -1,29 +1,10 @@
 import { z } from "zod";
+import { MUSCLE_GROUP_VALUES } from "@/lib/registry/muscle-groups";
+import { EXERCISE_CATEGORIES } from "@/lib/registry/exercise-categories";
 
-const muscleGroupEnum = z.enum([
-  "chest",
-  "back",
-  "shoulders",
-  "biceps",
-  "triceps",
-  "forearms",
-  "core",
-  "glutes",
-  "quads",
-  "hamstrings",
-  "calves",
-  "full_body",
-  "cardio",
-]);
+const muscleGroupEnum = z.enum(MUSCLE_GROUP_VALUES);
 
-/**
- * Curated category list with rich UI affordances. Migration 003 dropped the
- * DB CHECK constraint, so users can introduce any category string — we
- * accept any non-empty trimmed string here. The names listed below get
- * icons and grouping in the exercise library UI; unknown categories fall
- * back to a generic look.
- */
-export const KNOWN_CATEGORIES = [
+export const KNOWN_CATEGORIES = EXERCISE_CATEGORIES.map((c) => c.category) as unknown as readonly [
   "strength",
   "cardio",
   "flexibility",
@@ -32,7 +13,7 @@ export const KNOWN_CATEGORIES = [
   "mobility",
   "yoga",
   "other",
-] as const;
+];
 
 // Trim BEFORE the length check so "   " (whitespace-only) is rejected. The
 // chain order matters: `.min(1).trim()` validates the raw string first, so

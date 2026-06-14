@@ -6,32 +6,14 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { useCreateExercise, useUpdateExercise } from "../hooks/useExercises";
-import { KNOWN_CATEGORIES } from "@/lib/validations";
+import { MUSCLE_GROUPS } from "@/lib/registry/muscle-groups";
+import { EXERCISE_CATEGORIES } from "@/lib/registry/exercise-categories";
 import type { CreateExerciseInput } from "@/lib/validations";
 import type { Exercise, MuscleGroup } from "@/types/database";
 
-const MUSCLE_OPTIONS: { value: MuscleGroup; label: string }[] = [
-  { value: "chest", label: "Chest" },
-  { value: "back", label: "Back" },
-  { value: "shoulders", label: "Shoulders" },
-  { value: "biceps", label: "Biceps" },
-  { value: "triceps", label: "Triceps" },
-  { value: "forearms", label: "Forearms" },
-  { value: "core", label: "Core" },
-  { value: "glutes", label: "Glutes" },
-  { value: "quads", label: "Quads" },
-  { value: "hamstrings", label: "Hamstrings" },
-  { value: "calves", label: "Calves" },
-  { value: "full_body", label: "Full body" },
-  { value: "cardio", label: "Cardio" },
-];
+const MUSCLE_OPTIONS = MUSCLE_GROUPS.map((m) => ({ value: m.value, label: m.label }));
 
-const CATEGORY_OPTIONS = [
-  ...KNOWN_CATEGORIES.map((c) => ({
-    value: c,
-    label: c.charAt(0).toUpperCase() + c.slice(1),
-  })),
-];
+const CATEGORY_OPTIONS = EXERCISE_CATEGORIES.map((c) => ({ value: c.category, label: c.label }));
 
 interface Props {
   /** When provided, edit mode — pre-fills with existing values */
