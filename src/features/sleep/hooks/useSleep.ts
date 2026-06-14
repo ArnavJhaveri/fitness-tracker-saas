@@ -2,12 +2,14 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { sleepService } from "@/services/sleep.service";
+import { queryKeys, invalidateWithAnalytics } from "@/lib/query-keys";
 
-export const SLEEP_KEY = ["sleep"] as const;
+/** @deprecated Use `queryKeys.sleep()` from `@/lib/query-keys` instead. */
+export const SLEEP_KEY = queryKeys.sleep();
 
 export function useSleepEntries() {
   return useQuery({
-    queryKey: SLEEP_KEY,
+    queryKey: queryKeys.sleep(),
     queryFn: () => sleepService.list({ per_page: 30 }),
     staleTime: 60_000,
   });
@@ -18,8 +20,7 @@ export function useLogSleep() {
   return useMutation({
     mutationFn: sleepService.create,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: SLEEP_KEY });
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateWithAnalytics(qc, queryKeys.sleep());
     },
   });
 }
@@ -29,8 +30,7 @@ export function useDeleteSleep() {
   return useMutation({
     mutationFn: (id: string) => sleepService.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: SLEEP_KEY });
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateWithAnalytics(qc, queryKeys.sleep());
     },
   });
 }

@@ -2,12 +2,14 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { weightService } from "@/services/weight.service";
+import { queryKeys, invalidateWithAnalytics } from "@/lib/query-keys";
 
-export const WEIGHT_KEY = ["weight"] as const;
+/** @deprecated Use `queryKeys.weight()` from `@/lib/query-keys` instead. */
+export const WEIGHT_KEY = queryKeys.weight();
 
 export function useWeightEntries() {
   return useQuery({
-    queryKey: WEIGHT_KEY,
+    queryKey: queryKeys.weight(),
     queryFn: () => weightService.list({ per_page: 90 }),
     staleTime: 60_000,
   });
@@ -18,8 +20,7 @@ export function useLogWeight() {
   return useMutation({
     mutationFn: weightService.create,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: WEIGHT_KEY });
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateWithAnalytics(qc, queryKeys.weight());
     },
   });
 }
@@ -29,8 +30,7 @@ export function useDeleteWeight() {
   return useMutation({
     mutationFn: (id: string) => weightService.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: WEIGHT_KEY });
-      qc.invalidateQueries({ queryKey: ["analytics"] }); // keep dashboard weight stat fresh
+      invalidateWithAnalytics(qc, queryKeys.weight());
     },
   });
 }

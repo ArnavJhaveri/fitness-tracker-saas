@@ -2,12 +2,14 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { goalsService } from "@/services/goals.service";
+import { queryKeys, invalidateWithAnalytics } from "@/lib/query-keys";
 
-export const GOALS_KEY = ["goals"] as const;
+/** @deprecated Use `queryKeys.goals()` from `@/lib/query-keys` instead. */
+export const GOALS_KEY = queryKeys.goals();
 
 export function useGoals(status?: string) {
   return useQuery({
-    queryKey: [...GOALS_KEY, status],
+    queryKey: queryKeys.goals_filtered(status),
     queryFn: () => goalsService.list(status),
     staleTime: 60_000,
   });
@@ -19,8 +21,7 @@ export function useCreateGoal() {
     mutationFn: goalsService.create,
     onSuccess: () => {
       // Goals feed into the analytics adherence score — invalidate both.
-      qc.invalidateQueries({ queryKey: GOALS_KEY });
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateWithAnalytics(qc, queryKeys.goals());
     },
   });
 }
@@ -31,8 +32,7 @@ export function useUpdateGoal() {
     mutationFn: ({ id, data }: { id: string; data: Parameters<typeof goalsService.update>[1] }) =>
       goalsService.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: GOALS_KEY });
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateWithAnalytics(qc, queryKeys.goals());
     },
   });
 }
@@ -42,8 +42,7 @@ export function useDeleteGoal() {
   return useMutation({
     mutationFn: (id: string) => goalsService.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: GOALS_KEY });
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateWithAnalytics(qc, queryKeys.goals());
     },
   });
 }

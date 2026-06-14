@@ -3,13 +3,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { nutritionService } from "@/services/nutrition.service";
 import { localDateStr } from "@/lib/utils/date";
+import { queryKeys, invalidateWithAnalytics } from "@/lib/query-keys";
 import type { FoodItem } from "@/types/database";
 
 const today = () => localDateStr();
 
-export const MEALS_KEY = ["meals"] as const;
-export const FOOD_KEY = ["food-items"] as const;
-export const RECENT_FOODS_KEY = ["food-items", "recent"] as const;
+/** @deprecated Use `queryKeys.meals()` from `@/lib/query-keys` instead. */
+export const MEALS_KEY = queryKeys.meals();
+/** @deprecated Use `queryKeys.foodItems()` from `@/lib/query-keys` instead. */
+export const FOOD_KEY = queryKeys.foodItems();
+/** @deprecated Use `queryKeys.recentFoods()` from `@/lib/query-keys` instead. */
+export const RECENT_FOODS_KEY = queryKeys.recentFoods();
 
 /**
  * The user's most recently-logged foods. Powers the chip row in the food
@@ -20,7 +24,7 @@ export const RECENT_FOODS_KEY = ["food-items", "recent"] as const;
  */
 export function useRecentFoods() {
   return useQuery<FoodItem[]>({
-    queryKey: RECENT_FOODS_KEY,
+    queryKey: queryKeys.recentFoods(),
     queryFn: () => nutritionService.recentFoods(),
     staleTime: 5 * 60_000,
   });
@@ -34,7 +38,7 @@ export function useMeals(date?: string) {
   const end = new Date(d + "T23:59:59"); // local end of day
 
   return useQuery({
-    queryKey: [...MEALS_KEY, d],
+    queryKey: [...queryKeys.meals(), d],
     queryFn: () =>
       nutritionService.listMeals({
         from: start.toISOString(),
@@ -50,8 +54,7 @@ export function useCreateMeal() {
   return useMutation({
     mutationFn: nutritionService.createMeal,
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: MEALS_KEY });
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateWithAnalytics(qc, queryKeys.meals());
     },
   });
 }
@@ -61,8 +64,7 @@ export function useDeleteMeal() {
   return useMutation({
     mutationFn: (id: string) => nutritionService.deleteMeal(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: MEALS_KEY });
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateWithAnalytics(qc, queryKeys.meals());
     },
   });
 }
@@ -78,12 +80,10 @@ export function useAddMealItem() {
       data: { food_item_id: string; quantity_grams: number };
     }) => nutritionService.addMealItem(mealId, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: MEALS_KEY });
-      // Adding food items changes calorie totals — keep analytics in sync
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      // Adding food items changes calorie totals — keep analytics in sync.
       // The food just logged should appear in the recent-foods chip row,
       // so invalidate that too.
-      qc.invalidateQueries({ queryKey: RECENT_FOODS_KEY });
+      invalidateWithAnalytics(qc, queryKeys.meals(), queryKeys.recentFoods());
     },
   });
 }
@@ -94,9 +94,8 @@ export function useDeleteMealItem() {
     mutationFn: ({ mealId, itemId }: { mealId: string; itemId: string }) =>
       nutritionService.deleteMealItem(mealId, itemId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: MEALS_KEY });
       // Removing food items changes calorie totals — keep analytics in sync
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateWithAnalytics(qc, queryKeys.meals());
     },
   });
 }

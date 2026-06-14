@@ -4,11 +4,12 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { analyticsService } from "@/services/analytics.service";
 import { localDateStr } from "@/lib/utils/date";
+import { queryKeys } from "@/lib/query-keys";
 import type { DailySummary } from "@/types/database";
 
 export function useAnalytics(from?: string, to?: string) {
   return useQuery<DailySummary[]>({
-    queryKey: ["analytics", "daily", from, to],
+    queryKey: [...queryKeys.analytics(), "daily", from, to],
     queryFn: () => analyticsService.daily(from, to),
     staleTime: 60_000,
   });

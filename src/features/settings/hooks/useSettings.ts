@@ -2,12 +2,14 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { settingsService } from "@/services/settings.service";
+import { queryKeys } from "@/lib/query-keys";
 
-export const SETTINGS_KEY = ["settings"] as const;
+/** @deprecated Use `queryKeys.settings()` from `@/lib/query-keys` instead. */
+export const SETTINGS_KEY = queryKeys.settings();
 
 export function useSettings() {
   return useQuery({
-    queryKey: SETTINGS_KEY,
+    queryKey: queryKeys.settings(),
     queryFn: () => settingsService.get(),
     staleTime: 5 * 60_000, // settings change rarely
   });
@@ -19,7 +21,7 @@ export function useUpdateSettings() {
     mutationFn: settingsService.update,
     onSuccess: (updated) => {
       // Write updated data directly into the cache — no refetch needed
-      qc.setQueryData(SETTINGS_KEY, updated);
+      qc.setQueryData(queryKeys.settings(), updated);
     },
   });
 }

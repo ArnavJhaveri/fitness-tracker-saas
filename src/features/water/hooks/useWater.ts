@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { waterService } from "@/services/water.service";
 import { localDateStr } from "@/lib/utils/date";
+import { queryKeys, invalidateWithAnalytics } from "@/lib/query-keys";
 import type { WaterEntry } from "@/types/database";
 
 // Module-level monotonic counter used to mint unique optimistic-row ids.
@@ -27,12 +28,13 @@ function endOfLocalDay(): string {
 
 const today = () => localDateStr();
 
-export const WATER_KEY = ["water"] as const;
+/** @deprecated Use `queryKeys.water()` from `@/lib/query-keys` instead. */
+export const WATER_KEY = queryKeys.water();
 
 export function useWaterEntries() {
   const date = today();
   return useQuery({
-    queryKey: [...WATER_KEY, date],
+    queryKey: queryKeys.water_day(date),
     // Use local midnight/end-of-day so entries logged in non-UTC timezones
     // still appear under the correct local calendar date
     queryFn: () =>
@@ -58,7 +60,7 @@ export function useLogWater() {
     // that onError/onSettled use the *same* key even if the date rolls over
     // at midnight between the mutation firing and the callback running.
     onMutate: async (amount_ml) => {
-      const key = [...WATER_KEY, today()]; // capture key at mutation time
+      const key = queryKeys.water_day(today()); // capture key at mutation time
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<WaterEntry[]>(key);
       // Optimistic id needs to be unique even when two clicks land in the
@@ -86,9 +88,8 @@ export function useLogWater() {
       if (ctx?.prev !== undefined) qc.setQueryData(ctx.key, ctx.prev);
     },
     onSettled: (_d, _e, _v, ctx) => {
-      // Invalidate the specific day key + analytics; fall back to full WATER_KEY
-      qc.invalidateQueries({ queryKey: ctx?.key ?? WATER_KEY });
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      // Invalidate the specific day key + analytics; fall back to full water key
+      invalidateWithAnalytics(qc, ctx?.key ?? queryKeys.water());
     },
   });
 }
@@ -98,8 +99,7 @@ export function useDeleteWater() {
   return useMutation({
     mutationFn: (id: string) => waterService.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: WATER_KEY });
-      qc.invalidateQueries({ queryKey: ["analytics"] });
+      invalidateWithAnalytics(qc, queryKeys.water());
     },
   });
 }
